@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}Regulatory Directives{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <header class="dashboard-header">
+        <div>
+            <h1 class="dashboard-title">Regulatory Directives</h1>
+            <p class="dashboard-subtitle">Official cybersecurity advisories from global and national authorities.</p>
+        </div>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <button onclick="globalRefresh()" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px;">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                Global Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Modern Unified Tab Navigation -->
+    <div style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px; margin-bottom: var(--space-lg); width: fit-content;">
+        <a href="/cert" class="pro-tab-link {% if request.endpoint == 'cert' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'cert' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'cert' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="globe" style="width: 14px; height: 14px;"></i>
+            International CERT
+        </a>
+        <a href="/cert-in" class="pro-tab-link {% if request.endpoint == 'cert_in' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'cert_in' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'cert_in' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="flag" style="width: 14px; height: 14px;"></i>
+            CERT-In
+        </a>
+        <a href="/irdai" class="pro-tab-link {% if request.endpoint == 'irdai' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'irdai' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'irdai' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="shield" style="width: 14px; height: 14px;"></i>
+            IRDAI
+        </a>
+        <a href="/rbi" class="pro-tab-link {% if request.endpoint == 'rbi' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'rbi' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'rbi' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="building" style="width: 14px; height: 14px;"></i>
+            RBI
+        </a>
+        <a href="/india-govt" class="pro-tab-link {% if request.endpoint == 'india_govt' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'india_govt' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'india_govt' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
+            Unified View
+        </a>
+    </div>
+
+    <!-- Modern Search Bar -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-lg);">
+        <form method="GET" action="/government" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: var(--space-md); align-items: end;">
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Search Query</label>
+                <input type="text" name="search" placeholder="Keywords, title, source..." value="{{ search }}" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+            </div>
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Sort By</label>
+                <select name="sort" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="published_date">Date</option>
+                    <option value="title">Name</option>
+                </select>
+            </div>
+
+            <button type="submit" class="intel-btn-modern" style="padding: 10px 20px; font-size: 12px; min-height: 38px; white-space: nowrap;">
+                <i data-lucide="search" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SEARCH
+            </button>
+        </form>
+    </div>
+
+    <!-- Feed -->
+    <div>
+        {% if cert_in_items or cert_items %}
+            {% if cert_in_items %}
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                <div style="width: 4px; height: 24px; background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary)); border-radius: 2px;"></div>
+                <h2 style="font-size: 16px; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em;">National Intelligence (India)</h2>
+            </div>
+            {% for item in cert_in_items[:10] %}
+            <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-md); transition: all 0.2s; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;" onmouseover="this.style.borderColor='var(--border)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'; this.style.background='var(--bg-elevated)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)'; this.style.background='var(--bg-card)'">
+                <div style="display: flex; align-items: flex-start; gap: var(--space-md);">
+                    <!-- Agency Icon with National Flag Colors -->
+                    <div style="flex-shrink: 0;">
+                        {% if item.source == 'CERT-In' %}
+                        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #FF9933, #FFFFFF, #138808); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle); position: relative; overflow: hidden;">
+                            <div style="position: absolute; inset: 0; background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);"></div>
+                            <span style="font-size: 18px; font-weight: var(--fw-bold); color: #000080; z-index: 1;">IN</span>
+                        </div>
+                        {% elif item.source == 'RBI' %}
+                        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #1E3A8A, #3B82F6); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                            <span style="font-size: 16px; font-weight: var(--fw-bold); color: white; letter-spacing: 0.05em;">RBI</span>
+                        </div>
+                        {% elif item.source == 'IRDAI' %}
+                        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #059669, #10B981); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                            <span style="font-size: 14px; font-weight: var(--fw-bold); color: white; letter-spacing: 0.05em;">IRDAI</span>
+                        </div>
+                        {% else %}
+                        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                            <i data-lucide="file-text" style="width: 24px; height: 24px; color: white;"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div style="flex: 1; min-width: 0;">
+                        <!-- Header Row (Source, Date) -->
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs); flex-wrap: wrap;">
+                            <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source or 'CERT-IN' }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
+                        </div>
+                        
+                        <!-- Title -->
+                        <h3 style="font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; line-height: 1.5;">
+                            <a href="{{ item.source_url or '#' }}" target="_blank" style="color: inherit; text-decoration: none;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                        </h3>
+                        
+                        <!-- Description -->
+                        {% if item.description %}
+                        <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ item.description }}</p>
+                        {% endif %}
+                        
+                        <!-- Action Buttons -->
+                        {% if item.source_url %}
+                        <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
+                            <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                                <i data-lucide="square-arrow-out-up-right" style="width: 14px; height: 14px;"></i>
+                                Open Advisory
+                            </a>
+                            <button onclick="copyToClipboard('{{ item.source_url }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                Copy Link
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if cert_items %}
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; margin-top: 48px;">
+                <div style="width: 4px; height: 24px; background: linear-gradient(180deg, var(--accent-secondary), var(--accent-primary)); border-radius: 2px;"></div>
+                <h2 style="font-size: 16px; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em;">Global Advisory Stream</h2>
+            </div>
+            {% for item in cert_items[:10] %}
+            <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-md); transition: all 0.2s; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;" onmouseover="this.style.borderColor='var(--border)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'; this.style.background='var(--bg-elevated)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)'; this.style.background='var(--bg-card)'">
+                <div style="display: flex; align-items: flex-start; gap: var(--space-md);">
+                    <!-- Country Flag Icon with National Colors -->
+                    <div style="flex-shrink: 0;">
+                        {% set raw_data_dict = item.raw_data|safe_dict %}
+                        {% set country_code = raw_data_dict.get('country_code', '') if raw_data_dict else '' %}
+                        {% set country_name = raw_data_dict.get('country', '') if raw_data_dict else '' %}
+                        {% set source_lower = item.source|lower if item.source else '' %}
+                        {% if 'us' in source_lower or 'usa' in source_lower or 'us-cert' in source_lower or country_code == 'US' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #B22234, #3C3B6E); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇺🇸</span>
+                        </div>
+                        {% elif 'uk' in source_lower or 'britain' in source_lower or 'ncsc' in source_lower or country_code == 'GB' or country_code == 'UK' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #012169, #C8102E); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇬🇧</span>
+                        </div>
+                        {% elif 'canada' in source_lower or 'ccs' in source_lower or country_code == 'CA' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #FF0000, #FF0000); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇨🇦</span>
+                        </div>
+                        {% elif 'australia' in source_lower or 'acsc' in source_lower or country_code == 'AU' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #012169, #E4002B); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇦🇺</span>
+                        </div>
+                        {% elif 'germany' in source_lower or 'bsi' in source_lower or country_code == 'DE' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #000000, #DD0000, #FFCE00); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇩🇪</span>
+                        </div>
+                        {% elif 'france' in source_lower or 'anssi' in source_lower or country_code == 'FR' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #002654, #FFFFFF, #ED2939); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇫🇷</span>
+                        </div>
+                        {% elif 'japan' in source_lower or 'jpcert' in source_lower or country_code == 'JP' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #FFFFFF, #BC002D); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇯🇵</span>
+                        </div>
+                        {% elif 'netherlands' in source_lower or 'ncsc-nl' in source_lower or country_code == 'NL' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #AE1C28, #FFFFFF, #21468B); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇳🇱</span>
+                        </div>
+                        {% elif 'sweden' in source_lower or 'msb' in source_lower or country_code == 'SE' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #006AA7, #FECC00); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇸🇪</span>
+                        </div>
+                        {% elif 'switzerland' in source_lower or 'ncsc-ch' in source_lower or country_code == 'CH' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #FF0000, #FFFFFF); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇨🇭</span>
+                        </div>
+                        {% elif 'italy' in source_lower or 'csirt' in source_lower or country_code == 'IT' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #009246, #FFFFFF, #CE2B37); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇮🇹</span>
+                        </div>
+                        {% elif 'spain' in source_lower or 'incibe' in source_lower or country_code == 'ES' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #AA151B, #F1BF00); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇪🇸</span>
+                        </div>
+                        {% elif 'singapore' in source_lower or 'csa' in source_lower or country_code == 'SG' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ED2939, #FFFFFF); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇸🇬</span>
+                        </div>
+                        {% elif 'south korea' in source_lower or 'korea' in source_lower or 'kr-cert' in source_lower or country_code == 'KR' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #CE1126, #FFFFFF, #0047A0); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇰🇷</span>
+                        </div>
+                        {% elif 'israel' in source_lower or 'cert-il' in source_lower or country_code == 'IL' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0038B8, #FFFFFF); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇮🇱</span>
+                        </div>
+                        {% elif 'eu' in source_lower or 'cert-eu' in source_lower or country_code == 'EU' %}
+                        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #003399, #FFCC00); box-shadow: var(--shadow-sm);">
+                            <span style="font-size: 20px;">🇪🇺</span>
+                        </div>
+                        {% else %}
+                        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                            <i data-lucide="globe" style="width: 24px; height: 24px; color: white;"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div style="flex: 1; min-width: 0;">
+                        <!-- Header Row (Source, Date) -->
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs); flex-wrap: wrap;">
+                            <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source or 'CERT-INTL' }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
+                        </div>
+                        
+                        <!-- Title -->
+                        <h3 style="font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; line-height: 1.5;">
+                            <a href="{{ item.source_url or '#' }}" target="_blank" style="color: inherit; text-decoration: none;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                        </h3>
+                        
+                        <!-- Description -->
+                        {% if item.description %}
+                        <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ item.description }}</p>
+                        {% endif %}
+                        
+                        <!-- Action Buttons -->
+                        {% if item.source_url %}
+                        <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
+                            <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                                <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                Open Advisory
+                            </a>
+                            <button onclick="copyToClipboard('{{ item.source_url }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                Copy Link
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        {% else %}
+            <div style="padding: 100px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
+                <div style="width: 80px; height: 80px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; box-shadow: 0 8px 24px rgba(20, 184, 166, 0.3);">
+                    <i data-lucide="building-2" style="width: 40px; height: 40px; color: white;"></i>
+                </div>
+                <h3 style="font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.01em;">No Active Advisories</h3>
+                <p style="color: var(--text-muted); font-size: 15px;">Stream current. No new regulatory directives identified.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Link copied to clipboard', 'success');
+    }).catch(err => {
+        showNotification('Failed to copy link', 'error');
+    });
+}
+
+function globalRefresh() {
+    showNotification('Fetching all advisories...', 'info');
+    Promise.all([
+        fetch('/api/fetch/cert-in', { method: 'POST' }),
+        fetch('/api/fetch/rbi', { method: 'POST' }),
+        fetch('/api/fetch/irdai', { method: 'POST' }),
+        fetch('/api/fetch/cert', { method: 'POST' })
+    ]).then(responses => {
+        return Promise.all(responses.map(r => r.json()));
+    }).then(results => {
+        const successCount = results.filter(r => r.success || r.status === 'success').length;
+        if (successCount > 0) {
+            showNotification(`Synchronized ${successCount} advisory sources`, 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showNotification('Failed to fetch advisories', 'error');
+        }
+    }).catch(e => {
+        showNotification('Error: ' + e.message, 'error');
+    });
+}
+</script>
+{% endblock %}

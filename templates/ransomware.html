@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block title %}Ransomware Intelligence{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <header class="dashboard-header">
+        <div>
+            <h1 class="dashboard-title">Threat Actor Intelligence</h1>
+            <p class="dashboard-subtitle">Global monitoring of ransomware collectives, victim database, and threat landscape.</p>
+        </div>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <button onclick="syncRansomware()" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px;">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SYNC
+            </button>
+        </div>
+    </header>
+
+    <!-- Modern Tab Navigation -->
+    <div style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px; margin-bottom: var(--space-lg); width: fit-content; flex-wrap: wrap;">
+        <a href="/ransomware?tab=groups" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab == 'groups' or not tab %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab == 'groups' or not tab %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="users" style="width: 14px; height: 14px;"></i>
+            Threat Groups
+        </a>
+        <a href="/ransomware?tab=victims" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab == 'victims' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab == 'victims' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="user-x" style="width: 14px; height: 14px;"></i>
+            Victims
+        </a>
+    </div>
+
+    <!-- Modern Search Bar -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-lg);">
+        <form method="GET" action="/ransomware" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: var(--space-md); align-items: end;">
+            <input type="hidden" name="tab" value="{{ tab or 'groups' }}">
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Search Query</label>
+                <input type="text" name="search" placeholder="Threat actor, victim, keyword..." value="{{ search }}" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+            </div>
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Sort By</label>
+                <select name="sort" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="published_date" {% if sort_by == 'published_date' %}selected{% endif %}>Date</option>
+                    <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Name</option>
+                </select>
+            </div>
+
+            <button type="submit" class="intel-btn-modern" style="padding: 10px 20px; font-size: 12px; min-height: 38px; white-space: nowrap;">
+                <i data-lucide="search" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SEARCH
+            </button>
+        </form>
+    </div>
+
+    <!-- Results -->
+    <div>
+        {% if items %}
+            {% for item in items %}
+            {% set raw_data_dict = item.raw_data|safe_dict if item.raw_data else {} %}
+            {% set is_leak = 'Leak' in (item.tags|join(' ')) or 'Data Breach' in (item.tags|join(' ')) %}
+            {% set is_market = 'Market' in (item.tags|join(' ')) %}
+            {% set is_victim = 'Victim' in (item.tags|join(' ')) %}
+            <div style="background: {% if is_leak %}linear-gradient(135deg, rgba(239, 68, 68, 0.05), var(--bg-card)){% elif is_market %}linear-gradient(135deg, rgba(139, 92, 246, 0.05), var(--bg-card)){% else %}var(--bg-card){% endif %}; border: 1px solid {% if is_leak %}rgba(239, 68, 68, 0.3){% elif is_market %}rgba(139, 92, 246, 0.3){% else %}var(--border-subtle){% endif %}; border-left: {% if is_leak %}4px{% elif is_market %}4px{% else %}3px{% endif %} solid {% if is_leak %}var(--severity-critical){% elif is_market %}#8B5CF6{% else %}var(--severity-critical){% endif %}; border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-md); transition: all 0.2s; box-shadow: {% if is_leak %}0 4px 12px rgba(239, 68, 68, 0.15){% elif is_market %}0 4px 12px rgba(139, 92, 246, 0.15){% else %}var(--shadow-sm){% endif %}; position: relative; overflow: hidden;" onmouseover="this.style.borderColor='{% if is_leak %}rgba(239, 68, 68, 0.5){% elif is_market %}rgba(139, 92, 246, 0.5){% else %}var(--border){% endif %}'; this.style.borderLeftColor='{% if is_leak %}var(--severity-critical){% elif is_market %}#8B5CF6{% else %}var(--severity-critical){% endif %}'; this.style.transform='translateY(-2px)'; this.style.boxShadow='{% if is_leak %}0 6px 16px rgba(239, 68, 68, 0.25){% elif is_market %}0 6px 16px rgba(139, 92, 246, 0.25){% else %}var(--shadow-md){% endif %}'; this.style.background='{% if is_leak %}linear-gradient(135deg, rgba(239, 68, 68, 0.08), var(--bg-elevated)){% elif is_market %}linear-gradient(135deg, rgba(139, 92, 246, 0.08), var(--bg-elevated)){% else %}var(--bg-elevated){% endif %}'" onmouseout="this.style.borderColor='{% if is_leak %}rgba(239, 68, 68, 0.3){% elif is_market %}rgba(139, 92, 246, 0.3){% else %}var(--border-subtle){% endif %}'; this.style.borderLeftColor='{% if is_leak %}var(--severity-critical){% elif is_market %}#8B5CF6{% else %}var(--severity-critical){% endif %}'; this.style.transform='translateY(0)'; this.style.boxShadow='{% if is_leak %}0 4px 12px rgba(239, 68, 68, 0.15){% elif is_market %}0 4px 12px rgba(139, 92, 246, 0.15){% else %}var(--shadow-sm){% endif %}'; this.style.background='{% if is_leak %}linear-gradient(135deg, rgba(239, 68, 68, 0.05), var(--bg-card)){% elif is_market %}linear-gradient(135deg, rgba(139, 92, 246, 0.05), var(--bg-card)){% else %}var(--bg-card){% endif %}'">
+                {% if is_leak %}
+                <div style="position: absolute; top: 0; right: 0; padding: 4px 12px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); color: white; font-size: 9px; font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; border-bottom-left-radius: var(--radius-sm); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);">
+                    <i data-lucide="alert-triangle" style="width: 10px; height: 10px; display: inline-block; margin-right: 4px; vertical-align: middle;"></i>
+                    Critical Leak
+                </div>
+                {% elif is_market %}
+                <div style="position: absolute; top: 0; right: 0; padding: 4px 12px; background: linear-gradient(135deg, #8B5CF6, #6D28D9); color: white; font-size: 9px; font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; border-bottom-left-radius: var(--radius-sm); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);">
+                    <i data-lucide="store" style="width: 10px; height: 10px; display: inline-block; margin-right: 4px; vertical-align: middle;"></i>
+                    Market
+                </div>
+                {% endif %}
+                
+                <div style="display: flex; align-items: flex-start; gap: var(--space-md);">
+                    <!-- Group/Victim Icon -->
+                    <div style="flex-shrink: 0;">
+                        {% if is_leak %}
+                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); border: 2px solid rgba(239, 68, 68, 0.5); position: relative;">
+                            <i data-lucide="alert-triangle" style="width: 28px; height: 28px; color: white;"></i>
+                            <div style="position: absolute; inset: -2px; border: 2px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); animation: pulse-ring 2s infinite;"></div>
+                        </div>
+                        {% elif 'Group' in item.title or raw_data_dict.get('group_name') %}
+                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(239, 68, 68, 0.3);">
+                            <i data-lucide="users" style="width: 28px; height: 28px; color: white;"></i>
+                        </div>
+                        {% elif 'Victim' in item.title or 'victim' in item.title|lower %}
+                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #DC2626, #991B1B); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(239, 68, 68, 0.3);">
+                            <i data-lucide="user-x" style="width: 28px; height: 28px; color: white;"></i>
+                        </div>
+                        {% elif is_market %}
+                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #8B5CF6, #6D28D9); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4); border: 2px solid rgba(139, 92, 246, 0.5);">
+                            <i data-lucide="store" style="width: 28px; height: 28px; color: white;"></i>
+                        </div>
+                        {% else %}
+                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(239, 68, 68, 0.3);">
+                            <i data-lucide="shield-alert" style="width: 28px; height: 28px; color: white;"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: var(--space-sm);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap;">
+                            <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
+                        </div>
+                        
+                        <a href="{{ item.source_url or '#' }}" target="_blank" style="font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--text-primary); text-decoration: none; line-height: 1.4; display: block; letter-spacing: -0.01em;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                        
+                        {% if item.description %}
+                        <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm);">{{ item.description }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                
+                {% if item.raw_data %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-sm); padding-top: var(--space-md); border-top: 1px solid var(--border-subtle); margin-top: var(--space-md);">
+                    {% if item.raw_data.victim_count %}
+                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="users" style="width: 16px; height: 16px; color: var(--severity-critical);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Total Victims</span>
+                        </div>
+                        <div style="font-size: var(--fs-2xl); font-weight: var(--fw-black); color: var(--severity-critical); letter-spacing: -0.02em;">{{ item.raw_data.victim_count }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.status %}
+                    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), rgba(234, 179, 8, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(234, 179, 8, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="activity" style="width: 16px; height: 16px; color: var(--severity-medium);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Status</span>
+                        </div>
+                        <span class="severity-pill pill-medium" style="padding: 6px 12px; font-size: 11px; font-weight: var(--fw-bold);">{{ item.raw_data.status }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.website %}
+                    <div style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(20, 184, 166, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(20, 184, 166, 0.3); grid-column: span 2;">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="server" style="width: 16px; height: 16px; color: var(--accent-primary);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Infrastructure</span>
+                        </div>
+                        <div style="font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--accent-primary); word-break: break-all; font-family: var(--font-mono); line-height: 1.6; padding: var(--space-sm); background: var(--bg-app); border-radius: var(--radius-xs); border: 1px solid var(--border);">{{ item.raw_data.website }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.group_name %}
+                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(139, 92, 246, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="user-x" style="width: 16px; height: 16px; color: var(--accent-secondary);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Group Name</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--accent-secondary);">{{ item.raw_data.group_name }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.country %}
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="map-pin" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Country</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: #3b82f6;">{{ item.raw_data.country }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.sector %}
+                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="briefcase" style="width: 16px; height: 16px; color: #10b981;"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Sector</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: #10b981;">{{ item.raw_data.sector }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.first_seen %}
+                    <div style="background: var(--bg-elevated); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="calendar" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">First Seen</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary);">{{ item.raw_data.first_seen }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.victim_name %}
+                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="target" style="width: 16px; height: 16px; color: var(--severity-critical);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Victim</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--severity-critical);">{{ item.raw_data.victim_name }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.discovered %}
+                    <div style="background: var(--bg-elevated); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="eye" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Discovered</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary);">{{ item.raw_data.discovered }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.published %}
+                    <div style="background: var(--bg-elevated); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="send" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Published</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary);">{{ item.raw_data.published }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.post_title %}
+                    <div style="grid-column: 1 / -1; background: var(--bg-elevated); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="file-text" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Post Title</span>
+                        </div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary);">{{ item.raw_data.post_title }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.post_url %}
+                    <div style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(20, 184, 166, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(20, 184, 166, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs);">
+                            <i data-lucide="link-2" style="width: 16px; height: 16px; color: var(--accent-primary);"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Post URL</span>
+                        </div>
+                        <a href="{{ item.raw_data.post_url }}" target="_blank" style="font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--accent-primary); word-break: break-all; font-family: var(--font-mono); line-height: 1.6; padding: var(--space-sm); background: var(--bg-app); border-radius: var(--radius-xs); border: 1px solid var(--border); display: block; text-decoration: none;" onmouseover="this.style.background='var(--bg-elevated)'" onmouseout="this.style.background='var(--bg-app)'">{{ item.raw_data.post_url }}</a>
+                    </div>
+                    {% endif %}
+                    
+                    
+                    {% if item.raw_data.location_details %}
+                    <div style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(99, 102, 241, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-sm);">
+                            <i data-lucide="globe" style="width: 16px; height: 16px; color: #6366f1;"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Dark Web Locations ({{ item.raw_data.location_details|length }})</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-xs);">
+                            {% for loc in item.raw_data.location_details[:10] %}
+                            <div style="background: var(--bg-app); padding: var(--space-sm); border-radius: var(--radius-xs); border: 1px solid var(--border);">
+                                <div style="font-size: 9px; font-weight: var(--fw-semibold); color: #6366f1; font-family: var(--font-mono); word-break: break-all; margin-bottom: var(--space-xs); line-height: 1.4;">
+                                    {{ loc.fqdn or loc.onion_url or 'Unknown' }}
+                                </div>
+                                <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: var(--space-xs);">
+                                    {% if loc.available %}
+                                    <span style="padding: 2px 6px; background: rgba(16, 185, 129, 0.2); color: #10b981; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">✓ ONLINE</span>
+                                    {% else %}
+                                    <span style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">✗ OFFLINE</span>
+                                    {% endif %}
+                                    {% if loc.enabled %}
+                                    <span style="padding: 2px 6px; background: rgba(59, 130, 246, 0.2); color: #3b82f6; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">ENABLED</span>
+                                    {% endif %}
+                                    {% if loc.type %}
+                                    <span style="padding: 2px 6px; background: rgba(234, 179, 8, 0.2); color: #eab308; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">{{ loc.type }}</span>
+                                    {% endif %}
+                                    {% if loc.status %}
+                                    <span style="padding: 2px 6px; background: rgba(139, 92, 246, 0.2); color: #8b5cf6; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">HTTP {{ loc.status }}</span>
+                                    {% endif %}
+                                </div>
+                                {% if loc.title %}
+                                <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">
+                                    <strong>Title:</strong> {{ loc.title }}
+                                </div>
+                                {% endif %}
+                                {% if loc.last_scrape %}
+                                <div style="font-size: 9px; color: var(--text-muted);">
+                                    <strong>Last Scrape:</strong> {{ loc.last_scrape }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                            {% if item.raw_data.location_details|length > 10 %}
+                            <div style="background: var(--bg-elevated); padding: var(--space-sm); border-radius: var(--radius-xs); border: 1px dashed var(--border); display: flex; align-items: center; justify-content: center;">
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-semibold);">+{{ item.raw_data.location_details|length - 10 }} more locations</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    
+                    {% if item.raw_data.current_onion_urls %}
+                    <div style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(139, 92, 246, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-sm);">
+                            <i data-lucide="link" style="width: 16px; height: 16px; color: #8b5cf6;"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Current Onion URLs ({{ item.raw_data.current_onion_urls|length }})</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: var(--space-xs);">
+                            {% for url in item.raw_data.current_onion_urls[:5] %}
+                            <div style="background: var(--bg-app); padding: var(--space-sm); border-radius: var(--radius-xs); border: 1px solid var(--border); font-size: 10px; font-weight: var(--fw-medium); color: #8b5cf6; font-family: var(--font-mono); word-break: break-all;">
+                                {{ url }}
+                            </div>
+                            {% endfor %}
+                            {% if item.raw_data.current_onion_urls|length > 5 %}
+                            <div style="text-align: center; padding: var(--space-xs); font-size: 9px; color: var(--text-muted); font-weight: var(--fw-semibold);">
+                                +{{ item.raw_data.current_onion_urls|length - 5 }} more URLs
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.raw_data.available_locations and item.raw_data.available_locations|length > 0 %}
+                    <div style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3);">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-sm);">
+                            <i data-lucide="check-circle" style="width: 16px; height: 16px; color: #10b981;"></i>
+                            <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Active Locations ({{ item.raw_data.available_locations|length }})</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-xs);">
+                            {% for loc in item.raw_data.available_locations %}
+                            <div style="background: var(--bg-app); padding: var(--space-sm); border-radius: var(--radius-xs); border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <div style="font-size: 9px; font-weight: var(--fw-semibold); color: #10b981; font-family: var(--font-mono); word-break: break-all; margin-bottom: var(--space-xs); line-height: 1.4;">
+                                    {{ loc.fqdn or loc.onion_url or loc.slug or 'Unknown' }}
+                                </div>
+                                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                    {% if loc.available %}
+                                    <span style="padding: 2px 6px; background: rgba(16, 185, 129, 0.3); color: #10b981; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">✓ ONLINE</span>
+                                    {% endif %}
+                                    {% if loc.enabled %}
+                                    <span style="padding: 2px 6px; background: rgba(59, 130, 246, 0.2); color: #3b82f6; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">ENABLED</span>
+                                    {% endif %}
+                                    {% if loc.title %}
+                                    <span style="padding: 2px 6px; background: rgba(139, 92, 246, 0.2); color: #8b5cf6; border-radius: var(--radius-xs); font-size: 8px; font-weight: var(--fw-bold);">{{ loc.title }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div style="display: flex; justify-content: center; gap: var(--space-sm); margin-top: var(--space-xl); padding: var(--space-md);">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}&tab={{ tab }}&search={{ search|urlencode }}" class="intel-btn-modern" style="padding: var(--space-sm) var(--space-lg); font-size: var(--fs-xs); text-decoration: none; display: inline-flex; align-items: center; gap: var(--space-xs);">
+                    <i data-lucide="chevron-left" style="width: 14px; height: 14px;"></i>
+                    PREVIOUS
+                </a>
+                {% endif %}
+                <div style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-secondary); padding: 0 var(--space-md); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                    Page {{ page }} of {{ total_pages }}
+                </div>
+                {% if page < total_pages %}
+                <a href="?page={{ page + 1 }}&tab={{ tab }}&search={{ search|urlencode }}" class="intel-btn-modern" style="padding: var(--space-sm) var(--space-lg); font-size: var(--fs-xs); text-decoration: none; display: inline-flex; align-items: center; gap: var(--space-xs);">
+                    NEXT
+                    <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        {% else %}
+            <div style="padding: var(--space-3xl); text-align: center; background: var(--bg-card); border: 1px dashed var(--border); border-radius: var(--radius-md);">
+                <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-lg); box-shadow: var(--shadow-accent);">
+                    <i data-lucide="shield-off" style="width: 32px; height: 32px; color: white;"></i>
+                </div>
+                <h3 style="font-size: var(--fs-lg); font-weight: var(--fw-bold); margin-bottom: var(--space-sm); letter-spacing: -0.01em;">No Results Found</h3>
+                <p style="color: var(--text-muted); font-size: var(--fs-sm);">Try adjusting your search parameters or filters.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
+function syncRansomware() {
+    showNotification('Synchronizing ransomware intelligence...', 'info');
+    fetch('/api/fetch/ransomware', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success || data.status === 'success') {
+                showNotification('Ransomware intelligence synchronized', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            }
+        })
+        .catch(e => showNotification('Error: ' + e.message, 'error'));
+}
+</script>
+{% endblock %}

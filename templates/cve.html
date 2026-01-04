@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}Vulnerability Watch{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <!-- Page Header -->
+    <header class="dashboard-header" style="margin-bottom: var(--space-lg);">
+        <div>
+            <h1 class="dashboard-title" style="font-size: var(--fs-2xl); margin-bottom: 4px;">Vulnerability Watch</h1>
+            <p class="dashboard-subtitle" style="font-size: var(--fs-sm); color: var(--text-muted); margin: 0;">Global technical exposures and zero-day vulnerabilities</p>
+        </div>
+        
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button onclick="refreshCVE()" class="intel-btn-modern" style="padding: 6px 14px; font-size: 10px; min-height: 28px;">
+                <i data-lucide="refresh-cw" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                SYNC
+            </button>
+        </div>
+    </header>
+
+    <!-- Modern Tab Navigation -->
+    <div style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px; margin-bottom: var(--space-lg); width: fit-content;">
+        <a href="/cve?tab=database" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab != 'nvd' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab != 'nvd' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="database" style="width: 14px; height: 14px;"></i>
+            Intelligence Repo
+        </a>
+        <a href="/cve?tab=nvd" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab == 'nvd' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab == 'nvd' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+            NVD Search
+        </a>
+    </div>
+
+    <!-- Severity Filter Buttons (Only for Database Tab) -->
+    {% if tab != 'nvd' %}
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: var(--space-lg); align-items: center;">
+        <span style="font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 8px;">Filter:</span>
+        {% set all_severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'] %}
+        {% for sev in all_severities %}
+        <button 
+            type="button" 
+            class="severity-filter-btn" 
+            data-severity="{{ sev }}" 
+            onclick="toggleSeverityFilter('{{ sev }}')" 
+            style="
+                padding: 8px 16px; 
+                font-size: 11px; 
+                font-weight: var(--fw-bold); 
+                border-radius: var(--radius-sm); 
+                border: 2px solid; 
+                cursor: pointer; 
+                transition: all 0.2s; 
+                text-transform: uppercase; 
+                letter-spacing: 0.05em;
+                {% if sev in (selected_severities or []) %}
+                    opacity: 1; 
+                    transform: scale(1.05); 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                {% else %}
+                    opacity: 0.7;
+                {% endif %}
+                {% if sev == 'CRITICAL' %}
+                    background: rgba(239, 68, 68, 0.2); 
+                    color: #ef4444; 
+                    border-color: #ef4444;
+                {% elif sev == 'HIGH' %}
+                    background: rgba(245, 158, 11, 0.2); 
+                    color: #f59e0b; 
+                    border-color: #f59e0b;
+                {% elif sev == 'MEDIUM' %}
+                    background: rgba(234, 179, 8, 0.2); 
+                    color: #eab308; 
+                    border-color: #eab308;
+                {% elif sev == 'LOW' %}
+                    background: rgba(6, 182, 212, 0.2); 
+                    color: #06b6d4; 
+                    border-color: #06b6d4;
+                {% else %}
+                    background: rgba(156, 163, 175, 0.15); 
+                    color: var(--text-muted); 
+                    border-color: rgba(156, 163, 175, 0.4);
+                {% endif %}
+            ">
+            {{ sev }}
+        </button>
+        {% endfor %}
+        <input type="hidden" name="severities" id="severitiesInput" value="{{ selected_severities|join(',') if selected_severities else '' }}">
+    </div>
+    {% endif %}
+
+    <!-- Modern Search Bar -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-lg);">
+        <form method="GET" action="/cve" id="cveSearchForm" style="display: grid; grid-template-columns: {% if tab == 'nvd' %}2fr 1.2fr auto{% else %}2fr 1fr 1fr 1fr auto{% endif %}; gap: var(--space-md); align-items: end;">
+            <input type="hidden" name="tab" value="{{ tab or 'database' }}">
+            <input type="hidden" name="severities" id="severitiesFormInput" value="{{ selected_severities|join(',') if selected_severities else '' }}">
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">{% if tab == 'nvd' %}CVE ID or Keyword{% else %}Search Query{% endif %}</label>
+                <input type="text" name="search" placeholder="{% if tab == 'nvd' %}CVE-2025-XXXX or keyword...{% else %}CVE ID, vendor, keyword...{% endif %}" value="{{ search }}" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+            </div>
+            
+            {% if tab == 'nvd' %}
+            <!-- NVD Search Filters -->
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Severity</label>
+                <select name="severity" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="">All Severities</option>
+                    <option value="CRITICAL" {% if severity == 'CRITICAL' %}selected{% endif %}>Critical</option>
+                    <option value="HIGH" {% if severity == 'HIGH' %}selected{% endif %}>High</option>
+                    <option value="MEDIUM" {% if severity == 'MEDIUM' %}selected{% endif %}>Medium</option>
+                    <option value="LOW" {% if severity == 'LOW' %}selected{% endif %}>Low</option>
+                </select>
+            </div>
+            {% else %}
+            <!-- Enhanced Filters for Database Tab -->
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">CWE Type</label>
+                <select name="cwe" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="">All Weaknesses</option>
+                    <option value="CWE-79" {% if cwe == 'CWE-79' %}selected{% endif %}>CWE-79 (XSS)</option>
+                    <option value="CWE-89" {% if cwe == 'CWE-89' %}selected{% endif %}>CWE-89 (SQL Injection)</option>
+                    <option value="CWE-119" {% if cwe == 'CWE-119' %}selected{% endif %}>CWE-119 (Buffer Overflow)</option>
+                    <option value="CWE-20" {% if cwe == 'CWE-20' %}selected{% endif %}>CWE-20 (Input Validation)</option>
+                    <option value="CWE-200" {% if cwe == 'CWE-200' %}selected{% endif %}>CWE-200 (Info Exposure)</option>
+                    <option value="CWE-22" {% if cwe == 'CWE-22' %}selected{% endif %}>CWE-22 (Path Traversal)</option>
+                    <option value="CWE-352" {% if cwe == 'CWE-352' %}selected{% endif %}>CWE-352 (CSRF)</option>
+                    <option value="CWE-434" {% if cwe == 'CWE-434' %}selected{% endif %}>CWE-434 (File Upload)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">CVSS Score</label>
+                <select name="cvss_range" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="">All Scores</option>
+                    <option value="9.0-10.0" {% if cvss_range == '9.0-10.0' %}selected{% endif %}>9.0-10.0 (Critical)</option>
+                    <option value="7.0-8.9" {% if cvss_range == '7.0-8.9' %}selected{% endif %}>7.0-8.9 (High)</option>
+                    <option value="4.0-6.9" {% if cvss_range == '4.0-6.9' %}selected{% endif %}>4.0-6.9 (Medium)</option>
+                    <option value="0.1-3.9" {% if cvss_range == '0.1-3.9' %}selected{% endif %}>0.1-3.9 (Low)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Sort By</label>
+                <select name="sort" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="published_date" {% if sort_by == 'published_date' %}selected{% endif %}>Date</option>
+                    <option value="severity" {% if sort_by == 'severity' %}selected{% endif %}>CVSS</option>
+                </select>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="intel-btn-modern" style="padding: 10px 20px; font-size: 12px; min-height: 38px; white-space: nowrap;">
+                <i data-lucide="search" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SEARCH
+            </button>
+        </form>
+        {% if tab == 'nvd' %}
+        <div style="margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-subtle);">
+            <p style="font-size: 10px; color: var(--text-muted); line-height: 1.5; margin: 0;">
+                <i data-lucide="info" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>
+                Search NVD database directly. Leave query empty to view recent CVEs from the last 30 days.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Results -->
+    <div>
+        {% if error_message %}
+            <div style="padding: 40px; text-align: center; background: rgba(239, 68, 68, 0.1); border: 2px solid rgba(239, 68, 68, 0.3); border-radius: 16px; margin-bottom: var(--space-lg);">
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #ef4444;">Error</h3>
+                <p style="color: var(--text-secondary); font-size: 14px; margin: 0;">{{ error_message }}</p>
+            </div>
+        {% endif %}
+        
+        {% if items %}
+            {% for item in items %}
+            <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-md); transition: all 0.2s; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;" onmouseover="this.style.borderColor='var(--border)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'; this.style.background='var(--bg-elevated)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)'; this.style.background='var(--bg-card)'">
+                <!-- Header Row -->
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-sm);">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs); flex-wrap: wrap;">
+                            {% set cvss_score = item.cvss_v3_score or item.cvss_v2_score or item.cvss_v4_score %}
+                            {% if not cvss_score and item.raw_data %}
+                                {% if item.raw_data is mapping and item.raw_data.get('cvss_score') %}
+                                    {% set cvss_score = item.raw_data.get('cvss_score') %}
+                                {% endif %}
+                            {% endif %}
+                            {% set effective_severity = item.severity %}
+                            {% if not effective_severity and cvss_score %}
+                                {% if cvss_score >= 9.0 %}
+                                    {% set effective_severity = 'CRITICAL' %}
+                                {% elif cvss_score >= 7.0 %}
+                                    {% set effective_severity = 'HIGH' %}
+                                {% elif cvss_score >= 4.0 %}
+                                    {% set effective_severity = 'MEDIUM' %}
+                                {% else %}
+                                    {% set effective_severity = 'LOW' %}
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% set severity_color = 'var(--text-muted)' %}
+                            {% set severity_bg = 'rgba(156, 163, 175, 0.15)' %}
+                            {% set severity_border = 'rgba(156, 163, 175, 0.4)' %}
+                            {% if effective_severity == 'CRITICAL' %}
+                                {% set severity_color = 'var(--severity-critical)' %}
+                                {% set severity_bg = 'rgba(239, 68, 68, 0.15)' %}
+                                {% set severity_border = 'rgba(239, 68, 68, 0.4)' %}
+                            {% elif effective_severity == 'HIGH' %}
+                                {% set severity_color = 'var(--severity-high)' %}
+                                {% set severity_bg = 'rgba(245, 158, 11, 0.15)' %}
+                                {% set severity_border = 'rgba(245, 158, 11, 0.4)' %}
+                            {% elif effective_severity == 'MEDIUM' %}
+                                {% set severity_color = 'var(--severity-medium)' %}
+                                {% set severity_bg = 'rgba(234, 179, 8, 0.15)' %}
+                                {% set severity_border = 'rgba(234, 179, 8, 0.4)' %}
+                            {% elif effective_severity == 'LOW' %}
+                                {% set severity_color = 'var(--severity-low)' %}
+                                {% set severity_bg = 'rgba(6, 182, 212, 0.15)' %}
+                                {% set severity_border = 'rgba(6, 182, 212, 0.4)' %}
+                            {% endif %}
+                            
+                            {% if effective_severity %}
+                            <span style="padding: 4px 10px; font-size: 10px; font-weight: var(--fw-bold); border-radius: var(--radius-xs); background: {{ severity_bg }}; color: {{ severity_color }}; border: 1px solid {{ severity_border }}; text-transform: uppercase; letter-spacing: 0.05em;">{{ effective_severity }}</span>
+                            {% endif %}
+                            
+                            {% if item.cve_status %}
+                            <span style="padding: 4px 10px; font-size: 10px; font-weight: var(--fw-medium); border-radius: var(--radius-xs); background: rgba(99, 102, 241, 0.1); color: #6366f1; border: 1px solid rgba(99, 102, 241, 0.3);">{{ item.cve_status }}</span>
+                            {% endif %}
+                            
+                            {% if item.cwe_id %}
+                            <span style="padding: 4px 10px; font-size: 10px; font-weight: var(--fw-medium); border-radius: var(--radius-xs); background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3);">
+                                <span style="opacity: 0.7;">TYPE:</span> {{ item.cwe_id }}
+                            </span>
+                            {% endif %}
+                            
+                            <span style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-secondary); font-family: var(--font-mono); letter-spacing: 0.02em;">{{ item.cve_id or 'CVE' }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
+                        </div>
+                        <h3 style="font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; line-height: 1.4;">{{ item.cve_id or 'CVE' }}: {{ item.title }}</h3>
+                    </div>
+                    {% if cvss_score %}
+                    <div style="flex-shrink: 0; text-align: right;">
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">SCORE</div>
+                        <div style="font-size: 32px; font-weight: var(--fw-bold); color: {% if cvss_score >= 9.0 %}var(--severity-critical){% elif cvss_score >= 7.0 %}var(--severity-high){% elif cvss_score >= 4.0 %}var(--severity-medium){% else %}var(--severity-low){% endif %}; line-height: 1;">
+                            {{ "%.1f"|format(cvss_score) }}
+                        </div>
+                        <div style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-medium); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px;">
+                            {% if item.cvss_v4_score %}CVSS v4{% elif item.cvss_v3_score %}CVSS v3{% else %}CVSS v2{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if item.description %}
+                <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-md);">{{ item.description }}</p>
+                {% endif %}
+                
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-subtle);">
+                    {% if item.cve_id %}
+                    <a href="https://nvd.nist.gov/vuln/detail/{{ item.cve_id }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                        <i data-lucide="square-arrow-out-up-right" style="width: 14px; height: 14px;"></i>
+                        Open in NVD
+                    </a>
+                    <button onclick="copyToClipboard('https://nvd.nist.gov/vuln/detail/{{ item.cve_id }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                        Copy Link
+                    </button>
+                    {% endif %}
+                </div>
+
+                <!-- Metadata Section -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg); padding-top: var(--space-md); border-top: 1px solid var(--border-subtle); margin-top: var(--space-md);">
+                    {% if item.last_modified_date or (item.raw_data is mapping and item.raw_data.get('last_modified')) %}
+                    <div>
+                        <div style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Last Modified</div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary);">{{ (item.last_modified_date or (item.raw_data.get('last_modified') if item.raw_data is mapping else ''))|format_date }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.exploitability_score %}
+                    <div>
+                        <div style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Exploitability</div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: {% if item.exploitability_score >= 3.0 %}var(--severity-high){% else %}var(--text-primary){% endif %};">{{ "%.1f"|format(item.exploitability_score) }}/10</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.impact_score %}
+                    <div>
+                        <div style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Impact</div>
+                        <div style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: {% if item.impact_score >= 5.0 %}var(--severity-high){% else %}var(--text-primary){% endif %};">{{ "%.1f"|format(item.impact_score) }}/10</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.cvss_vector or (item.raw_data is mapping and item.raw_data.get('cvss_vector')) %}
+                    <div style="grid-column: 1 / -1;">
+                        <div style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">CVSS Vector</div>
+                        <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); background: var(--bg-elevated); padding: 6px 10px; border-radius: var(--radius-xs); border: 1px solid var(--border-subtle);">{{ item.cvss_vector or (item.raw_data.get('cvss_vector') if item.raw_data is mapping else '') }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Affected Products Section -->
+                {% if item.affected_products_json %}
+                {% set affected_products = item.affected_products_json|from_json %}
+                {% elif item.raw_data is mapping and item.raw_data.get('affected_products') %}
+                {% set affected_products = item.raw_data.get('affected_products') %}
+                {% else %}
+                {% set affected_products = [] %}
+                {% endif %}
+                {% if affected_products %}
+                <div style="padding-top: var(--space-md); border-top: 1px solid var(--border-subtle); margin-top: var(--space-md);">
+                    <div style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Affected Products ({{ affected_products|length }})</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        {% for prod in affected_products[:15] %}
+                        <span style="padding: 4px 10px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 10px; font-weight: var(--fw-medium); color: var(--text-secondary);" {% if prod is mapping and prod.cpe_uri %}title="{{ prod.cpe_uri }}"{% endif %}>
+                            {% if prod is string %}
+                                {{ prod }}
+                            {% elif prod is mapping and prod.vendor and prod.product %}
+                                {{ prod.vendor }}/{{ prod.product }}{% if prod.version and prod.version != '*' %} {{ prod.version }}{% endif %}
+                            {% elif prod is mapping and prod.cpe_uri %}
+                                {{ prod.cpe_uri|truncate(40) }}
+                            {% else %}
+                                {{ prod }}
+                            {% endif %}
+                        </span>
+                        {% endfor %}
+                        {% if affected_products|length > 15 %}
+                        <span style="padding: 4px 10px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 10px; font-weight: var(--fw-medium); color: var(--text-muted);">+{{ affected_products|length - 15 }} more</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- References Section -->
+                {% if item.references_json %}
+                {% set references = item.references_json|from_json %}
+                {% elif item.raw_data is mapping and item.raw_data.get('references') %}
+                {% set references = item.raw_data.get('references') %}
+                {% else %}
+                {% set references = [] %}
+                {% endif %}
+                {% if references %}
+                <div style="padding-top: var(--space-md); border-top: 1px solid var(--border-subtle); margin-top: var(--space-md);">
+                    <div style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">References ({{ references|length }})</div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        {% for ref in references[:5] %}
+                        <a href="{% if ref is string %}{{ ref }}{% else %}{{ ref.url }}{% endif %}" target="_blank" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 11px; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                            <i data-lucide="external-link" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{% if ref is string %}{{ ref }}{% else %}{{ ref.url }}{% endif %}</span>
+                            {% if ref is mapping and ref.tags %}
+                            <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                                {% for tag in ref.tags[:2] %}
+                                <span style="padding: 2px 6px; background: rgba(99, 102, 241, 0.1); color: #6366f1; border-radius: var(--radius-xs); font-size: 9px; font-weight: var(--fw-bold);">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                        {% if references|length > 5 %}
+                        <div style="padding: 6px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 10px; color: var(--text-muted); text-align: center;">+{{ references|length - 5 }} more references</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div style="display: flex; justify-content: center; gap: 12px; margin-top: 48px; padding: 20px;">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}&tab={{ tab or 'database' }}&search={{ search|urlencode }}{% if tab != 'nvd' %}&cwe={{ cwe }}&cvss_range={{ cvss_range }}&sort={{ sort_by }}&severities={{ selected_severities|join(',') }}{% else %}&severity={{ severity }}{% endif %}" class="intel-btn" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: var(--space-md) var(--space-xl); font-size: var(--fs-sm); text-decoration: none;">← PREV</a>
+                {% endif %}
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 700; color: var(--text-muted); padding: 0 20px;">
+                    {{ page }} / {{ total_pages }}
+                </div>
+                {% if page < total_pages %}
+                <a href="?page={{ page + 1 }}&tab={{ tab or 'database' }}&search={{ search|urlencode }}{% if tab != 'nvd' %}&cwe={{ cwe }}&cvss_range={{ cvss_range }}&sort={{ sort_by }}&severities={{ selected_severities|join(',') }}{% else %}&severity={{ severity }}{% endif %}" class="intel-btn" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: var(--space-md) var(--space-xl); font-size: var(--fs-sm); text-decoration: none;">NEXT →</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        {% else %}
+            <div style="padding: 100px; text-align: center; background: var(--bg-card); border: 2px dashed var(--border); border-radius: 16px;">
+                <div style="font-size: 56px; margin-bottom: 20px; opacity: 0.2;">🛡️</div>
+                <h3 style="font-size: 20px; font-weight: 800; margin-bottom: 10px;">No Vulnerabilities Found</h3>
+                <p style="color: var(--text-muted); font-size: 14px;">Try adjusting your search parameters.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+let selectedSeverities = new Set({{ selected_severities|tojson if selected_severities else '[]' }});
+
+function toggleSeverityFilter(severity) {
+    if (selectedSeverities.has(severity)) {
+        selectedSeverities.delete(severity);
+    } else {
+        selectedSeverities.add(severity);
+    }
+    
+    // Update button states
+    const btn = document.querySelector(`[data-severity="${severity}"]`);
+    if (btn) {
+        if (selectedSeverities.has(severity)) {
+            btn.style.opacity = '1';
+            btn.style.transform = 'scale(1.05)';
+            btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        } else {
+            btn.style.opacity = '0.7';
+            btn.style.transform = 'scale(1)';
+            btn.style.boxShadow = 'none';
+        }
+    }
+    
+    // Update both hidden inputs
+    const severitiesInput = document.getElementById('severitiesInput');
+    const severitiesFormInput = document.getElementById('severitiesFormInput');
+    const severitiesValue = Array.from(selectedSeverities).join(',');
+    
+    if (severitiesInput) {
+        severitiesInput.value = severitiesValue;
+    }
+    if (severitiesFormInput) {
+        severitiesFormInput.value = severitiesValue;
+    }
+    
+    // Submit form
+    const form = document.getElementById('cveSearchForm');
+    if (form) {
+        form.submit();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+    
+    // Initialize button states
+    {% if selected_severities %}
+    selectedSeverities = new Set({{ selected_severities|tojson }});
+    {% endif %}
+    
+    document.querySelectorAll('.severity-filter-btn').forEach(btn => {
+        const severity = btn.dataset.severity;
+        if (selectedSeverities.has(severity)) {
+            btn.style.opacity = '1';
+            btn.style.transform = 'scale(1.05)';
+        } else {
+            btn.style.opacity = '0.6';
+            btn.style.transform = 'scale(1)';
+        }
+    });
+});
+
+function refreshCVE() {
+    showNotification('Synchronizing vulnerability database...', 'info');
+    fetch('/api/fetch/cve', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Poll job status until completion
+                const pollInterval = setInterval(() => {
+                    fetch('/api/job/status')
+                        .then(r => r.json())
+                        .then(status => {
+                            if (!status.running && status.status === 'completed') {
+                                clearInterval(pollInterval);
+                                showNotification('CVE database synchronized', 'success');
+                                setTimeout(() => window.location.reload(), 500);
+                            } else if (!status.running && status.status === 'failed') {
+                                clearInterval(pollInterval);
+                                showNotification('CVE sync failed: ' + (status.message || 'Unknown error'), 'error');
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Error checking job status:', err);
+                            clearInterval(pollInterval);
+                            // Fallback: reload after 3 seconds if status check fails
+                            setTimeout(() => window.location.reload(), 3000);
+                        });
+                }, 1000); // Check every second
+                
+                // Timeout after 5 minutes
+                setTimeout(() => {
+                    clearInterval(pollInterval);
+                    showNotification('CVE sync timeout - refreshing page', 'info');
+                    window.location.reload();
+                }, 300000);
+            } else {
+                showNotification('Failed to start CVE sync: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Error starting CVE sync:', err);
+            showNotification('Failed to start CVE sync', 'error');
+        });
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Link copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        showNotification('Failed to copy link', 'error');
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,2730 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <header class="dashboard-header">
+        <div>
+            <h1 class="dashboard-title">System Control</h1>
+            <p class="dashboard-subtitle">Configure sources, feeds, and system settings.</p>
+        </div>
+        <form method="POST" action="{{ url_for('settings_logout') }}">
+            <button type="submit" class="intel-btn danger">LOGOUT</button>
+        </form>
+    </header>
+
+    <!-- Job Status -->
+    <div id="jobStatus" class="job-status-card" style="display: none;">
+        <div class="job-status-header">
+            <div>
+                <h3 id="jobTitle" class="job-title">PROCESSING</h3>
+                <p id="jobMessage" class="job-message"></p>
+            </div>
+            <button onclick="cancelJob()" class="intel-btn btn-secondary">CANCEL</button>
+        </div>
+        <div class="job-progress-bar">
+            <div id="jobProgress" class="job-progress-fill"></div>
+        </div>
+    </div>
+                
+    <!-- Enhanced Stats Dashboard -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ db_stats.total_items }}</div>
+                <div class="stat-label">Total Items</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">💾</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ db_stats.db_size }}</div>
+                <div class="stat-label">Database Size</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-content">
+                <div class="stat-value" style="color: var(--accent-primary);">ACTIVE</div>
+                <div class="stat-label">System Status</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ settings.fetch_interval }}m</div>
+                <div class="stat-label">Fetch Interval</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🔗</div>
+            <div class="stat-content">
+                <div class="stat-value" id="activeSourcesCount">-</div>
+                <div class="stat-label">Active Sources</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ clients|length }}</div>
+                <div class="stat-label">Clients</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabbed Interface -->
+    <div class="settings-tabs">
+        <button class="tab-btn active" onclick="switchTab('sources')" data-tab="sources">
+            <i data-lucide="database"></i> Data Sources
+        </button>
+        <button class="tab-btn" onclick="switchTab('config')" data-tab="config">
+            <i data-lucide="settings"></i> Configuration
+        </button>
+        <button class="tab-btn" onclick="switchTab('clients')" data-tab="clients">
+            <i data-lucide="users"></i> Clients
+        </button>
+        <button class="tab-btn" onclick="switchTab('custom')" data-tab="custom">
+            <i data-lucide="rss"></i> Custom Feeds
+        </button>
+        <button class="tab-btn" onclick="switchTab('articles')" data-tab="articles">
+            <i data-lucide="file-text"></i> Manage Articles
+        </button>
+    </div>
+
+    <!-- Sources Tab -->
+    <div id="tab-sources" class="tab-content active">
+        <div class="card">
+            <div class="card-header">
+                <h2>Data Sources</h2>
+                <div class="header-actions">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="sourceSearch" placeholder="Search sources..." oninput="filterSources()">
+                    </div>
+                    <select id="categoryFilter" onchange="filterSources()" class="filter-select">
+                        <option value="">All Categories</option>
+                                <option value="news">News</option>
+                        <option value="cert">CERT</option>
+                                <option value="cert-in">CERT-In (India)</option>
+                        <option value="cve">CVE</option>
+                        <option value="ransomware">Ransomware</option>
+                    </select>
+                    <select id="typeFilter" onchange="filterSources()" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="rss">RSS</option>
+                        <option value="sitemap">Sitemap</option>
+                        <option value="api">API</option>
+                        <option value="html">HTML</option>
+                    </select>
+                    <button onclick="showBulkActions()" class="intel-btn btn-secondary" id="bulkActionBtn" style="display: none;">
+                        <i data-lucide="check-square"></i> Bulk Actions
+                    </button>
+                    <button onclick="showAddSourceModal()" class="intel-btn">
+                        <i data-lucide="plus"></i> Add Source
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="sources-table-container">
+                    <table class="sources-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                                </th>
+                                <th onclick="sortSources('name')" class="sortable" style="width: 200px;">
+                                    Name <i data-lucide="chevron-up" class="sort-icon"></i>
+                                </th>
+                                <th onclick="sortSources('type')" class="sortable" style="width: 100px;">
+                                    Type <i data-lucide="chevron-up" class="sort-icon"></i>
+                                </th>
+                                <th onclick="sortSources('category')" class="sortable" style="width: 120px;">
+                                    Category <i data-lucide="chevron-up" class="sort-icon"></i>
+                                </th>
+                                <th style="width: 300px;">URL</th>
+                                <th onclick="sortSources('status')" class="sortable" style="width: 100px;">
+                                    Status <i data-lucide="chevron-up" class="sort-icon"></i>
+                                </th>
+                                <th style="width: 140px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sourcesTableBody">
+                            {% for cat in ['news', 'cert', 'cert-in', 'cve', 'ransomware'] %}
+                                {% for source in sources.get(cat, []) %}
+                                {% if source.get('is_group') %}
+                                <!-- Grouped Sitemaps -->
+                                <tr data-category="{{ cat }}" data-type="{{ source.type }}" data-name="{{ source.name|lower }}" class="source-row source-group-row" data-group-id="{{ source.group_id }}">
+                                    <td>
+                                        <input type="checkbox" class="source-checkbox" value="{{ source.name }}" onchange="updateBulkActions()">
+                                    </td>
+                                    <td colspan="7">
+                                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px;">
+                                            <div style="display: flex; align-items: center; gap: 12px;">
+                                                <button onclick="toggleSitemapGroup('{{ source.group_id }}')" class="btn-icon" style="background: transparent; border: none; padding: 4px;">
+                                                    <i data-lucide="chevron-right" class="group-chevron"></i>
+                                                </button>
+                                                <div>
+                                                    <strong style="color: var(--text-primary);">{{ source.name }}</strong>
+                                                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">
+                                                        <span class="badge badge-{{ source.type }}">{{ source.type|upper }}</span>
+                                                        <span class="badge badge-category">{{ cat|upper }}</span>
+                                                        <span style="margin-left: 8px;">{{ source.sitemap_count }} sitemap(s)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" {% if source.enabled %}checked{% endif %} 
+                                                           onchange="toggleSourceGroup('{{ source.name }}', this.checked)">
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                                <button onclick="testSource('{{ source.name }}', '{{ source.url or '' }}')" class="btn-icon" title="Test">
+                                                    <i data-lucide="play"></i>
+                                                </button>
+                                                <button onclick="editSitemapGroup('{{ source.name }}', {{ source.sitemaps|tojson }})" class="btn-icon" title="Edit Group">
+                                                    <i data-lucide="edit"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Hidden sitemap rows -->
+                                {% for sitemap in source.sitemaps %}
+                                <tr data-category="{{ cat }}" data-type="{{ source.type }}" data-name="{{ sitemap.original_name|lower }}" 
+                                    class="source-row sitemap-child-row" data-group-id="{{ source.group_id }}" style="display: none;">
+                                    <td></td>
+                                    <td style="padding-left: 48px;">
+                                        <strong style="color: var(--text-primary); font-weight: 700;">{{ sitemap.original_name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-{{ source.type }}">{{ source.type|upper }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-category">{{ cat|upper }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="url-cell" title="{{ sitemap.url or '' }}">
+                                            <a href="{{ sitemap.url or '#' }}" target="_blank" class="url-link">
+                                                {{ (sitemap.url or '')[:50] }}{% if (sitemap.url or '')|length > 50 %}...{% endif %}
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" {% if sitemap.enabled %}checked{% endif %} 
+                                                   onchange="toggleSource('{{ sitemap.original_name }}', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button onclick="testSource('{{ sitemap.original_name }}', '{{ sitemap.url or '' }}')" class="btn-icon" title="Test">
+                                                <i data-lucide="play"></i>
+                                            </button>
+                                            <button onclick="editSourceModal('{{ sitemap.original_name }}', '{{ sitemap.original_name }}', '{{ (sitemap.url or '')|replace("'", "\\'") }}', '{{ source.type }}', '{{ cat }}')" class="btn-icon" title="Edit">
+                                                <i data-lucide="edit"></i>
+                                            </button>
+                                            <button onclick="deleteSource('{{ sitemap.original_name }}')" class="btn-icon btn-danger" title="Delete">
+                                                <i data-lucide="trash-2"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <!-- Regular Source -->
+                                <tr data-category="{{ cat }}" data-type="{{ source.type }}" data-name="{{ source.name|lower }}" class="source-row">
+                                    <td>
+                                        <input type="checkbox" class="source-checkbox" value="{{ source.name }}" onchange="updateBulkActions()">
+                                    </td>
+                                    <td>
+                                        <strong style="color: var(--text-primary); font-weight: 700;">{{ source.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-{{ source.type }}">{{ source.type|upper }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-category">{{ cat|upper }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="url-cell" title="{{ source.url or '' }}">
+                                            <a href="{{ source.url or '#' }}" target="_blank" class="url-link">
+                                                {{ (source.url or '')[:50] }}{% if (source.url or '')|length > 50 %}...{% endif %}
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" {% if source.enabled %}checked{% endif %} 
+                                                   onchange="toggleSource('{{ source.name }}', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button onclick="testSource('{{ source.name }}', '{{ source.url or '' }}')" 
+                                                    class="btn-icon" title="Test Source">
+                                                <i data-lucide="play"></i>
+                                            </button>
+                                            <button onclick="editSourceModal('{{ source.name }}', '{{ source.name }}', '{{ (source.url or '')|replace("'", "\\'") }}', '{{ source.type }}', '{{ cat }}')" 
+                                                    class="btn-icon" title="Edit">
+                                                <i data-lucide="edit"></i>
+                                            </button>
+                                            <button onclick="deleteSource('{{ source.name }}')" 
+                                                    class="btn-icon btn-danger" title="Delete">
+                                                <i data-lucide="trash-2"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div id="noSourcesMessage" class="empty-state" style="display: none;">
+                        <i data-lucide="search-x"></i>
+                        <p>No sources found matching your filters</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Tab -->
+    <div id="tab-config" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2>System Configuration</h2>
+                <button onclick="triggerFetch()" class="intel-btn">
+                    <i data-lucide="refresh-cw"></i> Fetch All Now
+                </button>
+            </div>
+            <div class="card-body">
+                <form id="configForm" onsubmit="saveConfig(event);">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Fetch Interval (minutes)</label>
+                            <input type="number" name="fetch_interval" value="{{ settings.fetch_interval }}" 
+                                   class="pro-input" min="5" max="1440" required>
+                            <small>How often to automatically fetch new content (5-1440 minutes)</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="auto_refresh" {% if settings.auto_refresh %}checked{% endif %}>
+                                <span>Auto Refresh Enabled</span>
+                            </label>
+                            <small>Automatically fetch new content at the specified interval</small>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="intel-btn">Save Configuration</button>
+                        <button type="button" onclick="exportConfig()" class="intel-btn btn-secondary">
+                            <i data-lucide="download"></i> Export Config
+                        </button>
+                        <button type="button" onclick="document.getElementById('importConfigInput').click()" class="intel-btn btn-secondary">
+                            <i data-lucide="upload"></i> Import Config
+                        </button>
+                        <input type="file" id="importConfigInput" accept=".json" style="display: none;" onchange="importConfig(event)">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clients Tab -->
+    <div id="tab-clients" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2>Client Registry</h2>
+                <button onclick="showAddClientModal()" class="intel-btn">
+                    <i data-lucide="user-plus"></i> Add Client
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="clients-grid">
+                    {% for client in clients %}
+                    <div class="client-card">
+                        <div class="client-info">
+                            <i data-lucide="user"></i>
+                            <span>{{ client.name }}</span>
+                        </div>
+                        <button onclick="deleteClient({{ client.id }})" class="btn-icon btn-danger" title="Delete">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                    {% if clients|length == 0 %}
+                    <div class="empty-state">
+                        <i data-lucide="users"></i>
+                        <p>No clients registered</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Feeds Tab -->
+    <div id="tab-custom" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2>Custom Feeds</h2>
+                <button onclick="showAddCustomFeedModal()" class="intel-btn">
+                    <i data-lucide="plus"></i> Add Custom Feed
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="customFeedsList" class="custom-feeds-list">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Articles Management Tab -->
+    <div id="tab-articles" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2>Manage Articles & Intelligence Items</h2>
+                <div class="header-actions">
+                    <select id="articleCategoryFilter" onchange="loadArticles()" class="filter-select">
+                        <option value="news">News Articles</option>
+                        <option value="cve">CVEs</option>
+                        <option value="ransomware">Ransomware</option>
+                        <option value="exploit">Exploits</option>
+                        <option value="malware">Malware</option>
+                    </select>
+                    <select id="articleSourceFilter" onchange="loadArticles()" class="filter-select">
+                        <option value="">All Sources</option>
+                    </select>
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="articleSearch" placeholder="Search articles..." oninput="loadArticles()">
+                    </div>
+                    <button onclick="showBulkArticleActions()" class="intel-btn btn-secondary" id="bulkArticleBtn" style="display: none;">
+                        <i data-lucide="check-square"></i> Bulk Actions
+                    </button>
+                    <button onclick="showAddArticleModal()" class="intel-btn">
+                        <i data-lucide="plus"></i> Add Article
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="articles-table-container">
+                    <table class="sources-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="selectAllArticles" onchange="toggleSelectAllArticles()">
+                                </th>
+                                <th style="width: 80px; min-width: 80px;">ID</th>
+                                <th>Title</th>
+                                <th style="width: 150px;">Source</th>
+                                <th style="width: 120px;">Date</th>
+                                <th style="width: 120px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="articlesTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                    <i data-lucide="loader" class="spin-icon"></i> Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div id="articlesPagination" class="pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Source Modal -->
+<div id="sourceModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Add Data Source</h3>
+            <button onclick="closeSourceModal()" class="modal-close">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form id="sourceForm" onsubmit="addSource(event);">
+            <input type="hidden" id="sourceId" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Source Name *</label>
+                    <input type="text" id="sourceName" class="pro-input" placeholder="e.g., BleepingComputer" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type *</label>
+                        <select id="sourceType" class="pro-input" required>
+                            <option value="rss">RSS</option>
+                            <option value="sitemap">Sitemap</option>
+                            <option value="api">API</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select id="sourceCategory" class="pro-input" required>
+                            <option value="news">News</option>
+                            <option value="cert">CERT</option>
+                            <option value="cve">CVE</option>
+                            <option value="ransomware">Ransomware</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>URL *</label>
+                    <input type="url" id="sourceUrl" class="pro-input" placeholder="https://..." required>
+                    <small>Enter the feed URL, sitemap URL, or API endpoint</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeSourceModal()" class="intel-btn btn-secondary">Cancel</button>
+                <button type="submit" class="intel-btn">Save Source</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Client Modal -->
+<div id="clientModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Client</h3>
+            <button onclick="closeClientModal()" class="modal-close">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Client Name *</label>
+                <input type="text" id="clientNameInput" class="pro-input" placeholder="Enter client name" required>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="closeClientModal()" class="intel-btn btn-secondary">Cancel</button>
+            <button onclick="addClient()" class="intel-btn">Add Client</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div id="bulkActionsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Bulk Actions</h3>
+            <button onclick="closeBulkActionsModal()" class="modal-close">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>Selected sources: <strong id="selectedCount">0</strong></p>
+            <div class="bulk-actions-list">
+                <button onclick="bulkEnable()" class="bulk-action-btn">
+                    <i data-lucide="check-circle"></i> Enable Selected
+                </button>
+                <button onclick="bulkDisable()" class="bulk-action-btn">
+                    <i data-lucide="x-circle"></i> Disable Selected
+                </button>
+                <button onclick="bulkDelete()" class="bulk-action-btn btn-danger">
+                    <i data-lucide="trash-2"></i> Delete Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Article Modal -->
+<div id="editArticleModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 id="editArticleModalTitle">Edit Article</h3>
+            <button onclick="closeEditArticleModal()" class="modal-close">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form id="editArticleForm" onsubmit="saveArticle(event);">
+            <input type="hidden" id="editArticleId" value="">
+            <input type="hidden" id="editArticleType" value="">
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Title *</label>
+                        <input type="text" id="editArticleTitle" class="pro-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Source</label>
+                        <input type="text" id="editArticleSource" class="pro-input">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="editArticleDescription" class="pro-input" rows="6" style="resize: vertical;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Meta Description</label>
+                    <textarea id="editArticleMetaDescription" class="pro-input" rows="3" style="resize: vertical;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Image URL</label>
+                    <input type="url" id="editArticleImageUrl" class="pro-input" placeholder="https://example.com/image.jpg" oninput="updateImagePreview(this.value)">
+                    <div id="articleImagePreview" style="margin-top: 8px; display: none;">
+                        <img id="articleImagePreviewImg" src="" alt="Preview" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid var(--border);" onerror="this.parentElement.style.display='none'">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Source URL</label>
+                        <input type="url" id="editArticleSourceUrl" class="pro-input">
+                    </div>
+                    <div class="form-group">
+                        <label>Published Date</label>
+                        <input type="datetime-local" id="editArticlePublishedDate" class="pro-input">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tags (comma-separated)</label>
+                    <input type="text" id="editArticleTags" class="pro-input" placeholder="tag1, tag2, tag3">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeEditArticleModal()" class="intel-btn btn-secondary">Cancel</button>
+                <button type="submit" class="intel-btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Article Detail Modal (Feedly-style) -->
+<div id="articleDetailModal" class="modal article-detail-modal">
+    <div class="modal-content article-detail-content">
+        <button onclick="closeArticleDetailModal()" class="article-modal-close">
+            <i data-lucide="x"></i>
+        </button>
+        <button onclick="navigateArticle('prev')" class="article-nav-btn article-nav-prev" id="articleNavPrev">
+            <i data-lucide="chevron-left"></i>
+        </button>
+        <button onclick="navigateArticle('next')" class="article-nav-btn article-nav-next" id="articleNavNext">
+            <i data-lucide="chevron-right"></i>
+        </button>
+        <div class="article-detail-body" id="articleDetailBody">
+            <div style="text-align: center; padding: 60px;">
+                <i data-lucide="loader" class="spin-icon"></i>
+                <p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Article Actions Modal -->
+<div id="bulkArticleActionsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Bulk Article Actions</h3>
+            <button onclick="closeBulkArticleActionsModal()" class="modal-close">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>Selected items: <strong id="selectedArticleCount">0</strong> <span id="selectedPageInfo" style="color: var(--text-muted); font-size: 11px;"></span></p>
+            <div class="bulk-actions-list">
+                <button onclick="bulkDeleteArticles()" class="bulk-action-btn btn-danger" id="bulkDeleteBtn" style="background: rgba(255, 82, 82, 0.2) !important; border: 2px solid #ff5252 !important; color: #ff5252 !important; display: flex !important; visibility: visible !important; opacity: 1 !important; font-size: 14px !important; padding: 14px 20px !important; font-weight: 800 !important;">
+                    <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i> <span id="bulkDeleteText">DELETE SELECTED ARTICLES</span>
+                </button>
+                <button onclick="selectAllOnCurrentPage()" class="bulk-action-btn">
+                    <i data-lucide="check-square"></i> Select All on Current Page
+                </button>
+                <button onclick="selectAllFromSource()" class="bulk-action-btn">
+                    <i data-lucide="filter"></i> Select All from Source
+                </button>
+                <button onclick="deleteAllSelectedAcrossPages()" class="bulk-action-btn" style="background: rgba(255, 152, 0, 0.15); border-color: #ff9800; color: #ff9800;">
+                    <i data-lucide="trash-2"></i> Delete All Selected (Across All Pages)
+                </button>
+            </div>
+            <div id="selectSourceContainer" style="margin-top: 16px; display: none;">
+                <label style="display: block; margin-bottom: 8px; font-size: 11px; font-weight: 800; color: var(--text-muted);">Select Source:</label>
+                <select id="selectSourceDropdown" class="filter-select" style="width: 100%;">
+                    <option value="">Loading sources...</option>
+                </select>
+                <button onclick="applySelectAllFromSource()" class="intel-btn" style="margin-top: 12px; width: 100%;">
+                    Select All from This Source
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Enhanced Settings Styles */
+.job-status-card {
+    background: var(--bg-card);
+    border: 2px solid var(--accent-primary);
+    border-left: 6px solid var(--accent-primary);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.job-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.job-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    margin: 0 0 4px 0;
+}
+
+.job-message {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.job-progress-bar {
+    background: var(--bg-app);
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.job-progress-fill {
+    background: var(--accent-primary);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.2s;
+}
+
+.stat-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.settings-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+}
+
+.tab-btn.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.card {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+
+.card-header {
+    padding: 20px 24px;
+    background: var(--bg-sidebar);
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.card-header h2 {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    margin: 0;
+    flex: 1;
+    min-width: 150px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    color: var(--text-muted);
+    width: 16px;
+    height: 16px;
+}
+
+.search-box input {
+    padding: 10px 12px 10px 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 12px;
+    width: 250px;
+}
+
+
+.sources-table-container {
+    overflow-x: auto;
+}
+
+.sources-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.sources-table thead {
+    background: var(--bg-sidebar);
+}
+
+.sources-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sources-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sources-table th.sortable:hover {
+    color: var(--accent-primary);
+}
+
+.sources-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+    vertical-align: middle;
+}
+
+.sources-table td:first-child {
+    width: 40px;
+    text-align: center;
+}
+
+.sources-table td:nth-child(2) {
+    width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sources-table td:nth-child(3) {
+    width: 100px;
+}
+
+.sources-table td:nth-child(4) {
+    width: 120px;
+}
+
+.sources-table td:nth-child(5) {
+    width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sources-table td:nth-child(6) {
+    width: 100px;
+    text-align: center;
+}
+
+.sources-table td:nth-child(7) {
+    width: 140px;
+    text-align: center;
+}
+
+.sources-table tbody tr {
+    transition: background 0.2s;
+}
+
+.sources-table tbody tr:hover {
+    background: var(--bg-elevated);
+}
+
+.source-name-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.source-name-cell strong {
+    color: var(--text-primary);
+    font-weight: 700;
+    display: block;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.badge-rss { background: var(--accent-soft); color: var(--accent-primary); }
+.badge-sitemap { background: rgba(255, 152, 0, 0.15); color: var(--severity-high); }
+.badge-api { background: rgba(76, 175, 80, 0.15); color: var(--success); }
+.badge-html { background: rgba(156, 39, 176, 0.15); color: #9c27b0; }
+.badge-category { background: var(--bg-elevated); color: var(--text-secondary); }
+
+.url-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.url-link {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-size: 11px;
+}
+
+.url-link:hover {
+    text-decoration: underline;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-elevated);
+    border: 2px solid var(--border);
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text-muted);
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+    background-color: white;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-icon {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: var(--bg-card);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.btn-icon.btn-danger:hover {
+    background: var(--error);
+    border-color: var(--error);
+    color: white;
+}
+
+.btn-icon i {
+    width: 16px;
+    height: 16px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-xl);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.modal-close i {
+    width: 20px;
+    height: 20px;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    padding: 20px 24px;
+    border-top: 2px solid var(--border);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.form-group small {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    padding: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.checkbox-label:hover {
+    border-color: var(--accent-primary);
+    background: var(--accent-soft);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-primary);
+}
+
+.clients-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.client-card {
+    background: var(--bg-elevated);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.client-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+}
+
+.client-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.client-info i {
+    width: 20px;
+    height: 20px;
+    color: var(--accent-primary);
+}
+
+.bulk-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.bulk-action-btn {
+    padding: 12px 16px;
+    background: var(--bg-elevated);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s;
+    width: 100%;
+    justify-content: center;
+}
+
+.bulk-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.bulk-action-btn.btn-danger {
+    background: rgba(255, 82, 82, 0.15) !important;
+    border-color: var(--error) !important;
+    color: var(--error) !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.bulk-action-btn.btn-danger:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed;
+}
+
+#bulkDeleteBtn {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.bulk-action-btn:hover {
+    border-color: var(--accent-primary);
+    background: var(--accent-soft);
+}
+
+.bulk-action-btn.btn-danger:hover {
+    border-color: var(--error);
+    background: rgba(255, 82, 82, 0.15);
+}
+
+.btn-secondary {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-card);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.source-row.hidden {
+    display: none;
+}
+
+.source-group-row {
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--accent-primary);
+}
+
+.sitemap-child-row {
+    background: var(--bg-card);
+}
+
+.sitemap-child-row td:first-child {
+    border-left: 3px solid var(--border-subtle);
+}
+
+.group-chevron {
+    transition: transform 0.2s;
+}
+
+.group-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.pagination {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    padding: 20px;
+}
+
+.pagination button {
+    padding: 8px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.pagination button:hover:not(:disabled) {
+    background: var(--accent-soft);
+    border-color: var(--accent-primary);
+}
+
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination .page-info {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin: 0 12px;
+}
+
+.spin-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    min-width: 200px;
+}
+
+.filter-select {
+    min-width: 140px;
+    padding: 10px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23B3B3B3' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+}
+
+.filter-select:hover {
+    border-color: var(--accent-primary);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+@media (max-width: 1400px) {
+    .header-actions {
+        flex-wrap: wrap;
+    }
+    
+    .search-box {
+        min-width: 180px;
+        flex: 1;
+    }
+    
+    .filter-select {
+        min-width: 120px;
+    }
+}
+
+@media (max-width: 768px) {
+    .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .search-box,
+    .filter-select {
+        width: 100%;
+        min-width: auto;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+    checkStatus();
+    statusCheckInterval = setInterval(checkStatus, 10000);
+    updateActiveSourcesCount();
+    loadCustomFeeds();
+});
+
+let statusCheckInterval = null;
+let isJobRunning = false;
+let currentSort = { field: null, direction: 'asc' };
+
+function checkStatus() {
+    fetch('/api/job/status').then(r => r.json()).then(d => {
+        const el = document.getElementById('jobStatus');
+        const wasRunning = isJobRunning;
+        isJobRunning = d.is_running && d.job;
+        
+        if (isJobRunning) {
+            el.style.display = 'block';
+            document.getElementById('jobMessage').textContent = d.job.message || 'Processing...';
+            document.getElementById('jobProgress').style.width = (d.job.progress || 0) + '%';
+            
+            if (!wasRunning) {
+                if (statusCheckInterval) clearInterval(statusCheckInterval);
+                statusCheckInterval = setInterval(checkStatus, 2000);
+            }
+        } else {
+            el.style.display = 'none';
+            if (wasRunning) {
+                if (statusCheckInterval) clearInterval(statusCheckInterval);
+                statusCheckInterval = setInterval(checkStatus, 10000);
+            }
+        }
+    }).catch(err => console.error('Error checking job status:', err));
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    lucide.createIcons();
+}
+
+function filterSources() {
+    const search = document.getElementById('sourceSearch').value.toLowerCase();
+    const category = document.getElementById('categoryFilter').value;
+    const type = document.getElementById('typeFilter').value;
+    const rows = document.querySelectorAll('.source-row');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const name = (row.dataset.name || '').toLowerCase();
+        const rowCategory = row.dataset.category || '';
+        const rowType = (row.dataset.type || '').toLowerCase();
+        
+        // Check if row text content matches search (for better search)
+        const rowText = row.textContent.toLowerCase();
+        
+        const matchesSearch = !search || name.includes(search) || rowText.includes(search);
+        const matchesCategory = !category || rowCategory === category || rowCategory === 'cert-in' && category === 'cert';
+        const matchesType = !type || rowType === type.toLowerCase();
+        
+        if (matchesSearch && matchesCategory && matchesType) {
+            row.classList.remove('hidden');
+            visibleCount++;
+        } else {
+            row.classList.add('hidden');
+        }
+    });
+    
+    // Also hide/show select all checkbox row
+    const selectAllRow = document.querySelector('#selectAll')?.closest('tr');
+    if (selectAllRow && visibleCount === 0) {
+        selectAllRow.style.display = 'none';
+    } else if (selectAllRow) {
+        selectAllRow.style.display = '';
+    }
+    
+    document.getElementById('noSourcesMessage').style.display = visibleCount === 0 ? 'block' : 'none';
+    updateBulkActions();
+}
+
+function sortSources(field) {
+    const tbody = document.getElementById('sourcesTableBody');
+    const rows = Array.from(tbody.querySelectorAll('.source-row:not(.hidden)'));
+    
+    if (currentSort.field === field) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.field = field;
+        currentSort.direction = 'asc';
+    }
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        if (field === 'name') {
+            aVal = a.dataset.name || '';
+            bVal = b.dataset.name || '';
+        } else if (field === 'type') {
+            aVal = a.dataset.type || '';
+            bVal = b.dataset.type || '';
+        } else if (field === 'category') {
+            aVal = a.dataset.category || '';
+            bVal = b.dataset.category || '';
+        } else {
+            return 0;
+        }
+        
+        const comparison = aVal.localeCompare(bVal);
+        return currentSort.direction === 'asc' ? comparison : -comparison;
+    });
+    
+    rows.forEach(row => tbody.appendChild(row));
+    lucide.createIcons();
+}
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.source-checkbox:not([style*="display: none"])');
+    const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
+        const row = cb.closest('tr');
+        return row && !row.classList.contains('hidden');
+    });
+    visibleCheckboxes.forEach(cb => cb.checked = selectAll.checked);
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checked = document.querySelectorAll('.source-checkbox:checked');
+    const visibleChecked = Array.from(checked).filter(cb => {
+        const row = cb.closest('tr');
+        return row && !row.classList.contains('hidden');
+    });
+    const btn = document.getElementById('bulkActionBtn');
+    btn.style.display = visibleChecked.length > 0 ? 'inline-flex' : 'none';
+    if (visibleChecked.length > 0) {
+        btn.innerHTML = `<i data-lucide="check-square"></i> Bulk Actions (${visibleChecked.length})`;
+        lucide.createIcons();
+    }
+}
+
+function showBulkActions() {
+    const checked = document.querySelectorAll('.source-checkbox:checked');
+    document.getElementById('selectedCount').textContent = checked.length;
+    document.getElementById('bulkActionsModal').classList.add('active');
+    lucide.createIcons();
+}
+
+function closeBulkActionsModal() {
+    document.getElementById('bulkActionsModal').classList.remove('active');
+}
+
+function bulkEnable() {
+    const checked = document.querySelectorAll('.source-checkbox:checked');
+    checked.forEach(cb => {
+        const row = cb.closest('tr');
+        const toggle = row.querySelector('.toggle-switch input');
+        if (toggle && !toggle.checked) {
+            toggle.checked = true;
+            toggleSource(cb.value, true);
+        }
+    });
+    closeBulkActionsModal();
+    document.getElementById('selectAll').checked = false;
+    updateBulkActions();
+}
+
+function bulkDisable() {
+    const checked = document.querySelectorAll('.source-checkbox:checked');
+    checked.forEach(cb => {
+        const row = cb.closest('tr');
+        const toggle = row.querySelector('.toggle-switch input');
+        if (toggle && toggle.checked) {
+            toggle.checked = false;
+            toggleSource(cb.value, false);
+        }
+    });
+    closeBulkActionsModal();
+    document.getElementById('selectAll').checked = false;
+    updateBulkActions();
+}
+
+function bulkDelete() {
+    const checked = document.querySelectorAll('.source-checkbox:checked');
+    if (!confirm(`Delete ${checked.length} source(s)?`)) return;
+    
+    checked.forEach(cb => {
+        deleteSource(cb.value, true);
+    });
+    closeBulkActionsModal();
+    setTimeout(() => location.reload(), 1000);
+}
+
+function toggleSource(name, enabled) {
+    const encodedName = encodeURIComponent(name);
+    fetch(`/api/source/${encodedName}/toggle`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            updateActiveSourcesCount();
+            showNotification(d.message || (enabled ? 'Source enabled' : 'Source disabled'), 'success');
+        } else {
+            showNotification(d.error || 'Error updating source', 'error');
+        }
+    })
+    .catch(err => {
+        showNotification('Error updating source', 'error');
+    });
+}
+
+function testSource(name, url) {
+    showNotification(`Testing ${name}...`, 'info');
+    const encodedName = encodeURIComponent(name);
+    
+    fetch(`/api/source/${encodedName}/test`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success && d.results) {
+            const results = d.results;
+            const responseTime = results.response_time ? results.response_time.toFixed(2) : 'N/A';
+            const message = `✓ Test successful! Found ${results.items_found} item(s) in ${responseTime}s`;
+            showNotification(message, 'success');
+            console.log(`[TEST] ${name}:`, results);
+            
+            // Log to console with details
+            if (results.sample_title) {
+                console.log(`  Sample: ${results.sample_title}`);
+            }
+        } else {
+            const error = d.results?.error || d.error || 'Test failed';
+            const statusCode = d.results?.status_code ? ` (HTTP ${d.results.status_code})` : '';
+            showNotification(`✗ Test failed: ${error}${statusCode}`, 'error');
+            console.error(`[TEST] ${name} failed:`, d.results || d);
+        }
+    })
+    .catch(err => {
+        showNotification(`✗ Test error: ${err.message}`, 'error');
+        console.error(`[TEST] ${name} error:`, err);
+    });
+}
+
+function showAddSourceModal() {
+    document.getElementById('sourceId').value = '';
+    document.getElementById('sourceForm').reset();
+    document.getElementById('modalTitle').textContent = 'Add Data Source';
+    document.getElementById('sourceModal').classList.add('active');
+    lucide.createIcons();
+}
+
+function editSourceModal(id, name, url, type, category) {
+    document.getElementById('sourceId').value = id;
+    document.getElementById('sourceName').value = name;
+    document.getElementById('sourceUrl').value = url;
+    document.getElementById('sourceType').value = type;
+    document.getElementById('sourceCategory').value = category;
+    document.getElementById('modalTitle').textContent = 'Edit Data Source';
+    document.getElementById('sourceModal').classList.add('active');
+    lucide.createIcons();
+}
+
+function closeSourceModal() {
+    document.getElementById('sourceModal').classList.remove('active');
+}
+
+function showAddClientModal() {
+    document.getElementById('clientNameInput').value = '';
+    document.getElementById('clientModal').classList.add('active');
+    lucide.createIcons();
+}
+
+function closeClientModal() {
+    document.getElementById('clientModal').classList.remove('active');
+}
+
+function addSource(e) {
+    e.preventDefault();
+    const id = document.getElementById('sourceId').value;
+    const data = {
+        name: document.getElementById('sourceName').value,
+        feed_type: document.getElementById('sourceType').value,
+        category: document.getElementById('sourceCategory').value,
+        feed_url: document.getElementById('sourceUrl').value
+    };
+    
+    const url = id ? `/api/source/${encodeURIComponent(id)}` : '/api/source';
+    const method = id ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => {
+        if (!r.ok) {
+            return r.json().then(d => {
+                throw new Error(d.error || 'Failed to save source');
+            });
+        }
+        return r.json();
+    })
+    .then(d => {
+        if (d.success) {
+            showNotification(id ? 'Source updated' : 'Source added', 'success');
+            closeSourceModal();
+            setTimeout(() => location.reload(), 600);
+        } else {
+            showNotification(d.error || 'Error saving source', 'error');
+        }
+    })
+    .catch(err => {
+        showNotification(err.message || 'Error saving source', 'error');
+    });
+}
+
+function deleteSource(name, silent = false) {
+    if (!silent && !confirm(`Delete source "${name}"?`)) return;
+    const encodedName = encodeURIComponent(name);
+    fetch(`/api/source/${encodedName}`, { method: 'DELETE' })
+        .then(r => {
+            if (!r.ok) {
+                return r.json().then(d => {
+                    throw new Error(d.error || 'Failed to delete source');
+                });
+            }
+            return r.json();
+        })
+        .then(d => {
+            if (d.success) {
+                if (!silent) {
+                    showNotification('Source deleted', 'success');
+                    setTimeout(() => location.reload(), 600);
+                }
+            } else {
+                showNotification(d.error || 'Error deleting source', 'error');
+            }
+        })
+        .catch(err => {
+            showNotification(err.message || 'Error deleting source', 'error');
+        });
+}
+
+function addClient() {
+    const name = document.getElementById('clientNameInput').value.trim();
+    if (!name) { showNotification('Enter client name', 'warning'); return; }
+    fetch('/api/client', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    }).then(r => r.json()).then(d => {
+        if (d.success) {
+            showNotification('Client added', 'success');
+            closeClientModal();
+            setTimeout(() => location.reload(), 500);
+        }
+    });
+}
+
+function deleteClient(id) {
+    if (!confirm('Delete this client?')) return;
+    fetch(`/api/client/${id}`, { method: 'DELETE' }).then(() => {
+        showNotification('Client deleted', 'success');
+        setTimeout(() => location.reload(), 500);
+    });
+}
+
+function saveConfig(e) {
+    e.preventDefault();
+    fetch('/api/settings', { method: 'POST', body: new FormData(document.getElementById('configForm')) })
+        .then(r => r.json()).then(d => {
+            showNotification(d.success ? 'Configuration saved' : 'Error saving', d.success ? 'success' : 'error');
+        });
+}
+
+function triggerFetch() {
+    fetch('/api/fetch', { method: 'POST' }).then(() => showNotification('Fetch started', 'info'));
+}
+
+function cancelJob() {
+    fetch('/api/job/cancel', { method: 'POST' }).then(() => showNotification('Cancelled', 'info'));
+}
+
+function updateActiveSourcesCount() {
+    const enabled = document.querySelectorAll('.toggle-switch input:checked').length;
+    document.getElementById('activeSourcesCount').textContent = enabled;
+}
+
+function exportConfig() {
+    const config = {
+        fetch_interval: document.querySelector('[name="fetch_interval"]').value,
+        auto_refresh: document.querySelector('[name="auto_refresh"]').checked
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotification('Config exported', 'success');
+}
+
+function importConfig(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const config = JSON.parse(e.target.result);
+            if (config.fetch_interval) {
+                document.querySelector('[name="fetch_interval"]').value = config.fetch_interval;
+            }
+            if (config.auto_refresh !== undefined) {
+                document.querySelector('[name="auto_refresh"]').checked = config.auto_refresh;
+            }
+            showNotification('Config imported', 'success');
+        } catch (err) {
+            showNotification('Invalid config file', 'error');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function loadCustomFeeds() {
+    fetch('/api/custom-feeds')
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.feeds) {
+                const container = document.getElementById('customFeedsList');
+                if (d.feeds.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i data-lucide="rss"></i><p>No custom feeds</p></div>';
+                } else {
+                    container.innerHTML = d.feeds.map(feed => `
+                        <div class="client-card">
+                            <div class="client-info">
+                                <i data-lucide="rss"></i>
+                                <div>
+                                    <strong>${feed.name}</strong>
+                                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">
+                                        ${feed.type.toUpperCase()} • ${feed.category.toUpperCase()}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button onclick="deleteCustomFeed(${feed.id})" class="btn-icon btn-danger">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                lucide.createIcons();
+            }
+        })
+        .catch(err => console.error('Error loading custom feeds:', err));
+}
+
+function showAddCustomFeedModal() {
+    showAddSourceModal();
+    // Could customize for custom feeds if needed
+}
+
+function deleteCustomFeed(id) {
+    if (!confirm('Delete this custom feed?')) return;
+    fetch(`/api/custom-feed/${id}`, { method: 'DELETE' })
+        .then(() => {
+            showNotification('Custom feed deleted', 'success');
+            loadCustomFeeds();
+        });
+}
+
+// Close modals on outside click
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal')) {
+        e.target.classList.remove('active');
+    }
+});
+
+// Articles Management
+let currentArticlePage = 1;
+let currentArticleCategory = 'news';
+let selectedArticleIds = new Set(); // Store selected IDs across pages
+
+function loadArticles() {
+    const category = document.getElementById('articleCategoryFilter').value;
+    const search = document.getElementById('articleSearch').value;
+    const sourceFilter = document.getElementById('articleSourceFilter').value;
+    currentArticleCategory = category;
+    
+    const tbody = document.getElementById('articlesTableBody');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;"><i data-lucide="loader" class="spin-icon"></i> Loading...</td></tr>';
+    lucide.createIcons();
+    
+    const params = new URLSearchParams({
+        page: currentArticlePage,
+        per_page: 20,
+        category: category
+    });
+    if (search) params.append('search', search);
+    if (sourceFilter) params.append('source', sourceFilter);
+    
+    const endpoint = category === 'news' ? '/api/articles' : '/api/intelligence';
+    // Add cache-busting timestamp
+    params.append('_t', Date.now());
+    fetch(`${endpoint}?${params}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.items) {
+                renderArticles(d.items, d.pagination);
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No items found</td></tr>';
+            }
+            lucide.createIcons();
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--error);">Error loading: ${err.message}</td></tr>`;
+            console.error('Error loading articles:', err);
+        });
+}
+
+function renderArticles(items, pagination) {
+    const tbody = document.getElementById('articlesTableBody');
+    const isNews = currentArticleCategory === 'news';
+    
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No items found</td></tr>';
+        return;
+    }
+    
+    // Update source filter dropdown
+    const sources = [...new Set(items.map(i => i.source).filter(Boolean))];
+    const sourceFilter = document.getElementById('articleSourceFilter');
+    const currentSource = sourceFilter.value;
+    sourceFilter.innerHTML = '<option value="">All Sources</option>' + 
+        sources.map(s => `<option value="${escapeHtml(s)}" ${s === currentSource ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    
+    tbody.innerHTML = items.map(item => {
+        const date = item.published_date ? new Date(item.published_date).toLocaleDateString() : 'N/A';
+        const title = escapeHtml(item.title || '');
+        const titleShort = title.length > 80 ? title.substring(0, 80) + '...' : title;
+        const desc = escapeHtml(item.description || '');
+        const descShort = desc.length > 100 ? desc.substring(0, 100) + '...' : desc;
+        
+        return `
+            <tr data-source="${escapeHtml(item.source || '')}">
+                <td>
+                    <input type="checkbox" class="article-checkbox" value="${item.id}" onchange="updateBulkArticleActions()" ${selectedArticleIds.has(item.id) ? 'checked' : ''}>
+                </td>
+                <td style="font-weight: 600; color: var(--text-primary); min-width: 80px; width: 80px; text-align: left; padding: 12px 16px; white-space: nowrap;">${item.id || 'N/A'}</td>
+                <td>
+                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px; cursor: pointer;" onclick="showArticleDetail(${item.id}, ${isNews ? 'true' : 'false'})" title="Click to view details">${titleShort}</div>
+                    <div style="font-size: 10px; color: var(--text-muted);">${descShort}</div>
+                </td>
+                <td>
+                    <span class="badge badge-category">${escapeHtml(item.source || 'N/A')}</span>
+                </td>
+                <td style="font-size: 11px; color: var(--text-muted);">${date}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button onclick="editArticleFull(${item.id}, ${isNews ? 'true' : 'false'})" 
+                                class="btn-icon" title="Edit">
+                            <i data-lucide="edit"></i>
+                        </button>
+                        <button onclick="deleteArticle(${item.id}, '${isNews ? 'article' : 'intelligence'}')" 
+                                class="btn-icon btn-danger" title="Delete">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    lucide.createIcons();
+    
+    // Render pagination
+    if (pagination) {
+        const paginationEl = document.getElementById('articlesPagination');
+        paginationEl.innerHTML = `
+            <button onclick="changeArticlePage(${pagination.page - 1})" ${pagination.page <= 1 ? 'disabled' : ''}>
+                <i data-lucide="chevron-left"></i> Previous
+            </button>
+            <span class="page-info">Page ${pagination.page} of ${pagination.pages} (${pagination.total} total)</span>
+            <button onclick="changeArticlePage(${pagination.page + 1})" ${pagination.page >= pagination.pages ? 'disabled' : ''}>
+                Next <i data-lucide="chevron-right"></i>
+            </button>
+        `;
+        lucide.createIcons();
+    }
+}
+
+function changeArticlePage(page) {
+    currentArticlePage = page;
+    loadArticles();
+}
+
+function editArticleFull(id, isNews) {
+    const endpoint = isNews ? `/api/articles?id=${id}` : `/api/intelligence?id=${id}`;
+    fetch(endpoint)
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.item) {
+                const item = d.item;
+                document.getElementById('editArticleId').value = id;
+                document.getElementById('editArticleType').value = isNews ? 'article' : 'intelligence';
+                document.getElementById('editArticleModalTitle').textContent = isNews ? 'Edit Article' : 'Edit Intelligence Item';
+                document.getElementById('editArticleTitle').value = item.title || '';
+                document.getElementById('editArticleDescription').value = item.description || '';
+                document.getElementById('editArticleMetaDescription').value = item.meta_description || '';
+                document.getElementById('editArticleSource').value = item.source || '';
+                document.getElementById('editArticleSourceUrl').value = item.source_url || '';
+                document.getElementById('editArticleTags').value = item.tags || '';
+                
+                // Handle image URL
+                const imageUrl = item.image_url || '';
+                document.getElementById('editArticleImageUrl').value = imageUrl;
+                const previewDiv = document.getElementById('articleImagePreview');
+                const previewImg = document.getElementById('articleImagePreviewImg');
+                if (imageUrl) {
+                    previewImg.src = imageUrl;
+                    previewDiv.style.display = 'block';
+                } else {
+                    previewDiv.style.display = 'none';
+                }
+                
+                // Convert published_date to datetime-local format
+                if (item.published_date) {
+                    const date = new Date(item.published_date);
+                    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+                    document.getElementById('editArticlePublishedDate').value = localDate.toISOString().slice(0, 16);
+                }
+                
+                document.getElementById('editArticleModal').classList.add('active');
+                lucide.createIcons();
+            } else {
+                showNotification('Error loading article', 'error');
+            }
+        })
+        .catch(err => {
+            showNotification('Error loading article', 'error');
+            console.error(err);
+        });
+}
+
+function showAddArticleModal() {
+    document.getElementById('editArticleId').value = '';
+    document.getElementById('editArticleType').value = currentArticleCategory === 'news' ? 'article' : 'intelligence';
+    document.getElementById('editArticleModalTitle').textContent = 'Add New Article';
+    document.getElementById('editArticleForm').reset();
+    document.getElementById('editArticlePublishedDate').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('editArticleModal').classList.add('active');
+    lucide.createIcons();
+}
+
+function closeEditArticleModal() {
+    document.getElementById('editArticleModal').classList.remove('active');
+    document.getElementById('articleImagePreview').style.display = 'none';
+}
+
+function updateImagePreview(url) {
+    const previewDiv = document.getElementById('articleImagePreview');
+    const previewImg = document.getElementById('articleImagePreviewImg');
+    if (url && url.trim()) {
+        previewImg.src = url;
+        previewDiv.style.display = 'block';
+    } else {
+        previewDiv.style.display = 'none';
+    }
+}
+
+function saveArticle(e) {
+    e.preventDefault();
+    const id = document.getElementById('editArticleId').value;
+    const type = document.getElementById('editArticleType').value;
+    const data = {
+        title: document.getElementById('editArticleTitle').value,
+        description: document.getElementById('editArticleDescription').value,
+        meta_description: document.getElementById('editArticleMetaDescription').value,
+        source: document.getElementById('editArticleSource').value,
+        source_url: document.getElementById('editArticleSourceUrl').value,
+        image_url: document.getElementById('editArticleImageUrl').value,
+        tags: document.getElementById('editArticleTags').value
+    };
+    
+    // Convert datetime-local to ISO format
+    const dateInput = document.getElementById('editArticlePublishedDate').value;
+    if (dateInput) {
+        const date = new Date(dateInput);
+        data.published_date = date.toISOString();
+    }
+    
+    let endpoint, method;
+    if (id) {
+        endpoint = type === 'article' ? `/api/article/${id}` : `/api/intelligence/${id}`;
+        method = 'PUT';
+    } else {
+        endpoint = type === 'article' ? '/api/article' : '/api/intelligence';
+        method = 'POST';
+        data.category = currentArticleCategory;
+    }
+    
+    fetch(endpoint, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showNotification(id ? 'Article updated' : 'Article created', 'success');
+            closeEditArticleModal();
+            loadArticles();
+        } else {
+            showNotification(d.error || 'Error saving article', 'error');
+        }
+    })
+    .catch(err => {
+        showNotification('Error saving article', 'error');
+        console.error(err);
+    });
+}
+
+function deleteArticle(id, type) {
+    if (!confirm('Delete this item?')) return;
+    
+    const endpoint = type === 'article' ? `/api/article/${id}` : `/api/intelligence/${id}`;
+    
+    fetch(endpoint, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                showNotification('Item deleted', 'success');
+                // Force reload articles - reset page and reload
+                currentArticlePage = 1;
+                setTimeout(() => {
+                    loadArticles();
+                }, 100);
+            } else {
+                showNotification(d.error || 'Error deleting item', 'error');
+            }
+        })
+        .catch(err => {
+            showNotification('Error deleting item', 'error');
+            console.error(err);
+        });
+}
+
+function toggleSelectAllArticles() {
+    const selectAll = document.getElementById('selectAllArticles');
+    const checkboxes = document.querySelectorAll('.article-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+        const id = parseInt(cb.value);
+        if (selectAll.checked) {
+            selectedArticleIds.add(id);
+        } else {
+            selectedArticleIds.delete(id);
+        }
+    });
+    updateBulkArticleActions();
+}
+
+function updateBulkArticleActions() {
+    const checked = document.querySelectorAll('.article-checkbox:checked');
+    const btn = document.getElementById('bulkArticleBtn');
+    const count = checked.length;
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    if (count > 0) {
+        btn.innerHTML = `<i data-lucide="check-square"></i> Bulk Actions (${count})`;
+        lucide.createIcons();
+    }
+}
+
+function showBulkArticleActions() {
+    const checked = document.querySelectorAll('.article-checkbox:checked');
+    const count = checked.length;
+    const allCheckboxes = document.querySelectorAll('.article-checkbox');
+    const totalOnPage = allCheckboxes.length;
+    
+    document.getElementById('selectedArticleCount').textContent = count;
+    
+    // Show page info
+    const pageInfo = document.getElementById('selectedPageInfo');
+    if (pageInfo) {
+        if (count > 0) {
+            pageInfo.textContent = `(Showing page ${currentArticlePage}, ${count} of ${totalOnPage} on this page selected)`;
+        } else {
+            pageInfo.textContent = '';
+        }
+    }
+    
+    // Always show delete button - update text with count
+    const deleteBtn = document.getElementById('bulkDeleteBtn');
+    const deleteText = document.getElementById('bulkDeleteText');
+    const totalSelected = selectedArticleIds.size;
+    
+    if (deleteBtn && deleteText) {
+        // Force visibility with multiple methods
+        deleteBtn.style.setProperty('display', 'flex', 'important');
+        deleteBtn.style.setProperty('visibility', 'visible', 'important');
+        deleteBtn.style.setProperty('opacity', '1', 'important');
+        deleteBtn.style.setProperty('pointer-events', 'auto', 'important');
+        deleteText.textContent = count > 0 ? `DELETE SELECTED (${count} on page, ${totalSelected} total)` : `DELETE SELECTED (${totalSelected} total)`;
+        deleteBtn.disabled = totalSelected === 0;
+        
+        // Remove any classes that might hide it
+        deleteBtn.classList.remove('hidden');
+        deleteBtn.classList.remove('d-none');
+    }
+    
+    document.getElementById('bulkArticleActionsModal').classList.add('active');
+    lucide.createIcons();
+}
+
+function selectAllOnCurrentPage() {
+    const selectAll = document.getElementById('selectAllArticles');
+    const checkboxes = document.querySelectorAll('.article-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    // Toggle all on current page
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+    selectAll.checked = !allChecked;
+    updateBulkArticleActions();
+    showNotification(`Selected all ${checkboxes.length} items on current page`, 'success');
+}
+
+function closeBulkArticleActionsModal() {
+    document.getElementById('bulkArticleActionsModal').classList.remove('active');
+    document.getElementById('selectSourceContainer').style.display = 'none';
+}
+
+function bulkDeleteArticles() {
+    // Get IDs from current page checkboxes
+    const checked = document.querySelectorAll('.article-checkbox:checked');
+    const ids = Array.from(checked).map(cb => parseInt(cb.value));
+    
+    if (ids.length === 0) {
+        showNotification('No items selected on current page', 'warning');
+        return;
+    }
+    
+    if (!confirm(`Delete ${ids.length} item(s) from current page?`)) return;
+    
+    const endpoint = currentArticleCategory === 'news' ? '/api/articles/bulk-delete' : '/api/intelligence/bulk-delete';
+    
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showNotification(d.message || 'Items deleted', 'success');
+            closeBulkArticleActionsModal();
+            document.getElementById('selectAllArticles').checked = false;
+            // Clear all checkboxes and selected IDs
+            document.querySelectorAll('.article-checkbox').forEach(cb => cb.checked = false);
+            ids.forEach(id => selectedArticleIds.delete(id));
+            updateBulkArticleActions();
+            // Force reload articles - reset page and reload
+            currentArticlePage = 1;
+            // Add small delay to ensure backend has processed
+            setTimeout(() => {
+                loadArticles();
+            }, 100);
+        } else {
+            showNotification(d.error || 'Error deleting items', 'error');
+        }
+    })
+    .catch(err => {
+        showNotification('Error deleting items', 'error');
+        console.error(err);
+    });
+}
+
+function deleteAllSelectedAcrossPages() {
+    const totalSelected = selectedArticleIds.size;
+    
+    if (totalSelected === 0) {
+        showNotification('No items selected across all pages', 'warning');
+        return;
+    }
+    
+    if (!confirm(`Delete ALL ${totalSelected} selected item(s) across all pages? This action cannot be undone.`)) return;
+    
+    const ids = Array.from(selectedArticleIds);
+    const endpoint = currentArticleCategory === 'news' ? '/api/articles/bulk-delete' : '/api/intelligence/bulk-delete';
+    
+    // Show loading
+    showNotification(`Deleting ${ids.length} items...`, 'info');
+    
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showNotification(`Successfully deleted ${ids.length} item(s)`, 'success');
+            closeBulkArticleActionsModal();
+            // Clear all selections
+            selectedArticleIds.clear();
+            document.getElementById('selectAllArticles').checked = false;
+            document.querySelectorAll('.article-checkbox').forEach(cb => cb.checked = false);
+            updateBulkArticleActions();
+            // Force reload articles
+            currentArticlePage = 1;
+            setTimeout(() => {
+                loadArticles();
+            }, 100);
+        } else {
+            showNotification(d.error || 'Error deleting items', 'error');
+        }
+    })
+    .catch(err => {
+        showNotification('Error deleting items', 'error');
+        console.error(err);
+    });
+}
+
+function selectAllFromSource() {
+    document.getElementById('selectSourceContainer').style.display = 'block';
+    loadSourceList();
+}
+
+function loadSourceList() {
+    const category = currentArticleCategory;
+    const endpoint = category === 'news' ? '/api/articles' : '/api/intelligence';
+    
+    fetch(`${endpoint}?per_page=1000&category=${category}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.items) {
+                const sources = [...new Set(d.items.map(i => i.source).filter(Boolean))];
+                const dropdown = document.getElementById('selectSourceDropdown');
+                dropdown.innerHTML = '<option value="">Select a source...</option>' +
+                    sources.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+            }
+        })
+        .catch(err => console.error('Error loading sources:', err));
+}
+
+function applySelectAllFromSource() {
+    const source = document.getElementById('selectSourceDropdown').value;
+    if (!source) {
+        showNotification('Please select a source', 'warning');
+        return;
+    }
+    
+    const endpoint = currentArticleCategory === 'news' ? '/api/articles/by-source' : '/api/intelligence/by-source';
+    fetch(`${endpoint}?source=${encodeURIComponent(source)}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.ids) {
+                // Check all checkboxes for these IDs
+                d.ids.forEach(id => {
+                    const checkbox = document.querySelector(`.article-checkbox[value="${id}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+                // Update select all checkbox state
+                const allCheckboxes = document.querySelectorAll('.article-checkbox');
+                const checkedCount = document.querySelectorAll('.article-checkbox:checked').length;
+                document.getElementById('selectAllArticles').checked = allCheckboxes.length === checkedCount && allCheckboxes.length > 0;
+                updateBulkArticleActions();
+                closeBulkArticleActionsModal();
+                showNotification(`Selected ${d.ids.length} items from ${source}`, 'success');
+            } else {
+                showNotification('No items found for this source', 'warning');
+            }
+        })
+        .catch(err => {
+            showNotification('Error selecting items', 'error');
+            console.error(err);
+        });
+}
+
+function toggleSitemapGroup(groupId) {
+    const chevron = document.querySelector(`[data-group-id="${groupId}"] .group-chevron`);
+    const children = document.querySelectorAll(`.sitemap-child-row[data-group-id="${groupId}"]`);
+    
+    const isExpanded = children[0] && children[0].style.display !== 'none';
+    
+    children.forEach(row => {
+        row.style.display = isExpanded ? 'none' : '';
+    });
+    
+    if (chevron) {
+        if (isExpanded) {
+            chevron.classList.remove('expanded');
+        } else {
+            chevron.classList.add('expanded');
+        }
+    }
+    lucide.createIcons();
+}
+
+function toggleSourceGroup(baseName, enabled) {
+    // This would need backend support to toggle all sitemaps in a group
+    showNotification(`${enabled ? 'Enabling' : 'Disabling'} all sitemaps in ${baseName}...`, 'info');
+}
+
+function editSitemapGroup(baseName, sitemaps) {
+    // Show modal with all sitemaps in the group
+    showNotification(`Editing sitemap group: ${baseName} (${sitemaps.length} sitemaps)`, 'info');
+    // Could implement a group edit modal here
+}
+
+// Load articles when tab is switched
+const originalSwitchTab = switchTab;
+switchTab = function(tabName) {
+    originalSwitchTab(tabName);
+    if (tabName === 'articles') {
+        currentArticlePage = 1;
+        loadArticles();
+    }
+};
+
+// Article Detail Modal Functions
+let currentArticleDetailId = null;
+let currentArticleList = [];
+let currentArticleIndex = -1;
+
+function showArticleDetail(articleId, isNews) {
+    currentArticleDetailId = articleId;
+    const modal = document.getElementById('articleDetailModal');
+    const body = document.getElementById('articleDetailBody');
+    
+    modal.classList.add('active');
+    body.innerHTML = '<div style="text-align: center; padding: 60px;"><i data-lucide="loader" class="spin-icon"></i><p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p></div>';
+    lucide.createIcons();
+    
+    // Get current article list for navigation
+    const rows = document.querySelectorAll('.article-checkbox');
+    currentArticleList = Array.from(rows).map(cb => parseInt(cb.value));
+    currentArticleIndex = currentArticleList.indexOf(articleId);
+    
+    // Update navigation buttons
+    document.getElementById('articleNavPrev').style.display = currentArticleIndex > 0 ? 'flex' : 'none';
+    document.getElementById('articleNavNext').style.display = currentArticleIndex < currentArticleList.length - 1 ? 'flex' : 'none';
+    
+    // Fetch article details
+    const endpoint = isNews ? `/api/articles?id=${articleId}` : `/api/intelligence?id=${articleId}`;
+    fetch(endpoint)
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.item) {
+                renderArticleDetail(d.item, isNews);
+            } else {
+                body.innerHTML = '<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article</p></div>';
+            }
+            lucide.createIcons();
+        })
+        .catch(err => {
+            body.innerHTML = '<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article</p></div>';
+            console.error(err);
+        });
+}
+
+function renderArticleDetail(item, isNews) {
+    const body = document.getElementById('articleDetailBody');
+    const date = item.published_date ? new Date(item.published_date).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    }) : 'N/A';
+    const timeAgo = item.published_date ? getTimeAgo(new Date(item.published_date)) : '';
+    
+    const imageHtml = item.image_url ? `
+        <div style="position: relative; width: 100%; height: 300px; border-radius: var(--radius-lg); overflow: hidden; margin-bottom: var(--space-xl); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);">
+            <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title || '')}" 
+                 style="width: 100%; height: 100%; object-fit: cover;" 
+                 onerror="this.parentElement.style.display='none'">
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: var(--space-lg);"></div>
+        </div>
+    ` : '';
+    
+    // Parse tags - handle both JSON string and array
+    let tagsArray = [];
+    if (item.tags) {
+        if (typeof item.tags === 'string') {
+            try {
+                const parsed = JSON.parse(item.tags);
+                if (Array.isArray(parsed)) {
+                    tagsArray = parsed;
+                } else {
+                    tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
+                }
+            } catch (e) {
+                tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
+            }
+        } else if (Array.isArray(item.tags)) {
+            tagsArray = item.tags;
+        }
+    }
+    
+    const tagsHtml = tagsArray
+        .filter(Boolean)
+        .filter(tag => tag !== '[]' && tag !== '')
+        .map(tag => `<span style="padding: 6px 14px; background: linear-gradient(135deg, rgba(20, 184, 166, 0.15), rgba(20, 184, 166, 0.05)); border: 1px solid rgba(20, 184, 166, 0.3); border-radius: var(--radius-sm); font-size: 11px; font-weight: var(--fw-bold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(tag)}</span>`).join('');
+    
+    // Get category badge
+    const categoryBadge = item.category ? `
+        <span style="padding: 6px 14px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-sm); font-size: 11px; font-weight: var(--fw-bold); color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em;">
+            ${escapeHtml(item.category)}
+        </span>
+    ` : '';
+    
+    body.innerHTML = `
+        <div style="padding: var(--space-xl);">
+            <!-- Header Section with Gradient Background -->
+            <div style="background: linear-gradient(135deg, var(--bg-elevated), var(--bg-sidebar)); border-radius: var(--radius-lg); padding: var(--space-xl); margin-bottom: var(--space-xl); border: 1px solid var(--border-subtle); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(20, 184, 166, 0.1), transparent); border-radius: 50%;"></div>
+                <div style="position: relative; z-index: 1;">
+                    <!-- Meta Info -->
+                    <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md); flex-wrap: wrap;">
+                        ${categoryBadge}
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); padding: 6px 14px; background: var(--bg-app); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                            <i data-lucide="newspaper" style="width: 14px; height: 14px; color: var(--accent-primary);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-bold); color: var(--text-primary);">${escapeHtml(item.source || 'Unknown Source')}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); padding: 6px 14px; background: var(--bg-app); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                            <i data-lucide="calendar" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-secondary);">${date}</span>
+                        </div>
+                        ${timeAgo ? `
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); padding: 6px 14px; background: rgba(245, 158, 11, 0.1); border-radius: var(--radius-sm); border: 1px solid rgba(245, 158, 11, 0.3);">
+                            <i data-lucide="clock" style="width: 14px; height: 14px; color: #f59e0b;"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: #f59e0b;">${timeAgo}</span>
+                        </div>
+                        ` : ''}
+                        ${item.id ? `
+                        <div style="display: flex; align-items: center; gap: var(--space-xs); padding: 6px 14px; background: var(--bg-app); border-radius: var(--radius-sm); border: 1px solid var(--border); margin-left: auto;">
+                            <i data-lucide="hash" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-muted); font-family: var(--font-mono);">ID: ${item.id}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Title -->
+                    <h1 style="font-size: 32px; font-weight: var(--fw-black); color: var(--text-primary); line-height: 1.3; margin: 0; letter-spacing: -0.02em;">${escapeHtml(item.title || 'Untitled')}</h1>
+                </div>
+            </div>
+            
+            <!-- Image -->
+            ${imageHtml}
+            
+            <!-- Description Section -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-xl); margin-bottom: var(--space-xl);">
+                <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); padding-bottom: var(--space-md); border-bottom: 2px solid var(--border);">
+                    <i data-lucide="file-text" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
+                    <h3 style="font-size: 14px; font-weight: var(--fw-bold); color: var(--text-primary); margin: 0; text-transform: uppercase; letter-spacing: 0.05em;">Description</h3>
+                </div>
+                <div style="font-size: 15px; line-height: 1.8; color: var(--text-secondary); white-space: pre-wrap;">
+                    ${escapeHtml(item.description || item.meta_description || 'No description available.')}
+                </div>
+            </div>
+            
+            <!-- Tags Section -->
+            ${tagsHtml ? `
+            <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-xl); margin-bottom: var(--space-xl);">
+                <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); padding-bottom: var(--space-md); border-bottom: 2px solid var(--border);">
+                    <i data-lucide="tag" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
+                    <h3 style="font-size: 14px; font-weight: var(--fw-bold); color: var(--text-primary); margin: 0; text-transform: uppercase; letter-spacing: 0.05em;">Tags</h3>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: var(--space-sm);">
+                    ${tagsHtml}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: var(--space-md); padding-top: var(--space-lg); border-top: 2px solid var(--border); flex-wrap: wrap;">
+                ${item.source_url ? `
+                <a href="${escapeHtml(item.source_url)}" target="_blank" 
+                   style="flex: 1; min-width: 200px; padding: 16px 28px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; border: none; border-radius: var(--radius-md); font-weight: var(--fw-bold); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); transition: all 0.2s; text-decoration: none; box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);"
+                   onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(20, 184, 166, 0.4)'"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(20, 184, 166, 0.3)'">
+                    <i data-lucide="external-link" style="width: 18px; height: 18px;"></i>
+                    <span>Visit Website</span>
+                </a>
+                ` : ''}
+                <button onclick="closeArticleDetailModal(); editArticleFull(${item.id}, ${isNews ? 'true' : 'false'});" 
+                        style="flex: 1; min-width: 200px; padding: 16px 28px; background: var(--bg-elevated); color: var(--text-primary); border: 2px solid var(--border); border-radius: var(--radius-md); font-weight: var(--fw-bold); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); transition: all 0.2s;"
+                        onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-sidebar)'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.borderColor='var(--border)'; this.style.background='var(--bg-elevated)'; this.style.transform='translateY(0)'">
+                    <i data-lucide="edit" style="width: 18px; height: 18px;"></i>
+                    <span>Edit Article</span>
+                </button>
+                <button onclick="copyToClipboard('${escapeHtml(item.source_url || '')}')" 
+                        style="padding: 16px 24px; background: var(--bg-elevated); color: var(--text-primary); border: 2px solid var(--border); border-radius: var(--radius-md); font-weight: var(--fw-bold); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); transition: all 0.2s;"
+                        onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-sidebar)'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.borderColor='var(--border)'; this.style.background='var(--bg-elevated)'; this.style.transform='translateY(0)'">
+                    <i data-lucide="copy" style="width: 18px; height: 18px;"></i>
+                    <span>Copy Link</span>
+                </button>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function getTimeAgo(date) {
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+    return '';
+}
+
+function navigateArticle(direction) {
+    if (currentArticleList.length === 0) return;
+    
+    let newIndex = currentArticleIndex;
+    if (direction === 'prev' && currentArticleIndex > 0) {
+        newIndex = currentArticleIndex - 1;
+    } else if (direction === 'next' && currentArticleIndex < currentArticleList.length - 1) {
+        newIndex = currentArticleIndex + 1;
+    } else {
+        return;
+    }
+    
+    const newId = currentArticleList[newIndex];
+    const isNews = currentArticleCategory === 'news';
+    showArticleDetail(newId, isNews);
+}
+
+function closeArticleDetailModal() {
+    document.getElementById('articleDetailModal').classList.remove('active');
+    currentArticleDetailId = null;
+    currentArticleList = [];
+    currentArticleIndex = -1;
+}
+
+// Close modal on Escape key and arrow navigation
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeArticleDetailModal();
+    } else if (e.key === 'ArrowLeft' && document.getElementById('articleDetailModal').classList.contains('active')) {
+        navigateArticle('prev');
+    } else if (e.key === 'ArrowRight' && document.getElementById('articleDetailModal').classList.contains('active')) {
+        navigateArticle('next');
+    }
+});
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}
+

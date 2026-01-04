@@ -1,0 +1,1490 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category|title }} Intelligence{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <header class="dashboard-header">
+        <div>
+            <h1 class="dashboard-title">
+                {% if category == 'news' %}Editorial Intelligence{% elif category == 'ransomware' %}Threat Actor Intelligence{% else %}{{ category|title }} Stream{% endif %}
+            </h1>
+            <p class="dashboard-subtitle">
+                {% if category == 'news' %}Global cybersecurity news and intelligence feed.{% elif category == 'ransomware' %}Monitoring ransomware groups and victim database.{% else %}Intelligence stream for {{ category }}.{% endif %}
+            </p>
+        </div>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            {% if category == 'news' %}
+            <button id="refreshNews" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px;">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SYNC
+            </button>
+            {% elif category == 'ransomware' %}
+            <button id="refreshRansomware" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px;">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SYNC
+            </button>
+            {% elif category == 'cert-in' or category == 'cert' %}
+            <button onclick="globalRefresh()" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-accent); color: var(--accent-primary);">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                Global Refresh
+            </button>
+            {% endif %}
+        </div>
+    </header>
+
+    {% if category == 'cert-in' or category == 'cert' %}
+    <!-- Unified Tab Navigation -->
+    <div style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px; margin-bottom: var(--space-lg); width: fit-content;">
+        <a href="/cert" class="pro-tab-link {% if request.endpoint == 'cert' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'cert' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'cert' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="globe" style="width: 14px; height: 14px;"></i>
+            International CERT
+        </a>
+        <a href="/cert-in" class="pro-tab-link {% if request.endpoint == 'cert_in' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'cert_in' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'cert_in' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="flag" style="width: 14px; height: 14px;"></i>
+            CERT-In
+        </a>
+        <a href="/irdai" class="pro-tab-link {% if request.endpoint == 'irdai' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'irdai' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'irdai' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="shield" style="width: 14px; height: 14px;"></i>
+            IRDAI
+        </a>
+        <a href="/rbi" class="pro-tab-link {% if request.endpoint == 'rbi' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'rbi' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'rbi' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="building" style="width: 14px; height: 14px;"></i>
+            RBI
+        </a>
+        <a href="/india-govt" class="pro-tab-link {% if request.endpoint == 'india_govt' %}active{% endif %}" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if request.endpoint == 'india_govt' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if request.endpoint == 'india_govt' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
+            Unified View
+        </a>
+    </div>
+    
+    <!-- Year Filter and Refresh Controls (for CERT-In and CERT) -->
+    {% if request.endpoint == 'cert_in' or request.endpoint == 'cert' %}
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-lg);">
+        <form method="GET" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md);">
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                <i data-lucide="calendar" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
+                <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Filter by Year:</span>
+            </div>
+            
+            <div style="display: flex; gap: var(--space-sm); align-items: center; flex: 1;">
+                <input 
+                    type="number" 
+                    name="year" 
+                    placeholder="Enter year (e.g., 2024)" 
+                    value="{{ year if year else '' }}" 
+                    min="2003" 
+                    max="{{ current_year if current_year is defined else 2025 }}"
+                    style="width: 180px; padding: 8px 12px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; transition: all 0.2s;"
+                    onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" 
+                    onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'"
+                >
+                {% if search %}
+                <input type="hidden" name="search" value="{{ search }}">
+                {% endif %}
+                <button type="submit" class="intel-btn-modern" style="padding: 8px 16px; font-size: 11px; min-height: 32px; white-space: nowrap;">
+                    <i data-lucide="search" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                    FILTER
+                </button>
+                {% if year %}
+                <a href="{{ '/cert-in' if request.endpoint == 'cert_in' else '/cert' }}{% if search %}?search={{ search|urlencode }}{% endif %}" class="intel-btn-modern" style="padding: 8px 16px; font-size: 11px; min-height: 32px; text-decoration: none; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-secondary);">
+                    <i data-lucide="x" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                    CLEAR
+                </a>
+                {% endif %}
+            </div>
+            
+            <div style="display: flex; gap: var(--space-xs); flex-wrap: wrap;">
+                {% if request.endpoint == 'cert_in' %}
+                <button type="button" onclick="refreshAgency('cert-in')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-accent); color: var(--accent-primary);">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                    Refresh
+                </button>
+                <button type="button" onclick="hardRefreshCertIn()" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-accent); color: var(--accent-primary);">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                    Hard Refresh
+                </button>
+                {% else %}
+                <button type="button" onclick="refreshAgency('cert')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-accent); color: var(--accent-primary);">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                    Refresh
+                </button>
+                {% endif %}
+            </div>
+        </form>
+        {% if year %}
+        <div style="margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border-subtle);">
+            <span style="font-size: 11px; color: var(--text-muted);">
+                <i data-lucide="filter" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+                Showing advisories from year <strong style="color: var(--accent-primary);">{{ year }}</strong>
+            </span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if category == 'news' %}
+    <!-- Modern Tab Navigation -->
+    <div style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px; margin-bottom: var(--space-lg); width: fit-content;">
+        <a href="/news?tab=articles" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab != 'archive' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab != 'archive' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="newspaper" style="width: 14px; height: 14px;"></i>
+            Articles
+        </a>
+        <a href="/news?tab=archive" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab == 'archive' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab == 'archive' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="archive" style="width: 14px; height: 14px;"></i>
+            Archives
+        </a>
+    </div>
+    
+    {% if tab == 'archive' %}
+    <div class="intel-control-bar" style="margin-bottom: var(--space-lg); padding: 16px 24px; border-radius: 12px; height: auto; flex-wrap: wrap;">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%;">
+            <span style="font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-right: 12px;">Source Channels:</span>
+            <a href="/news?tab=archive" class="severity-pill {% if not selected_website %}pill-low{% else %}tag-badge{% endif %}" style="text-decoration: none;">Unified Pipeline</a>
+            {% for site_domain, site_name in websites %}
+            <a href="/news?tab=archive&website={{ site_domain|urlencode }}" class="severity-pill {% if selected_website == site_domain %}pill-low{% else %}tag-badge{% endif %}" style="text-decoration: none;">{{ site_name }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+    
+    {% if category == 'ransomware' %}
+    <!-- Modern Tab Navigation -->
+    <div style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px; margin-bottom: var(--space-lg); width: fit-content; flex-wrap: wrap;">
+        <a href="/ransomware?tab=groups" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab == 'groups' or not tab %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab == 'groups' or not tab %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="users" style="width: 14px; height: 14px;"></i>
+            Threat Groups
+        </a>
+        <a href="/ransomware?tab=victims" style="padding: 8px 20px; font-size: 11px; font-weight: var(--fw-semibold); color: {% if tab == 'victims' %}var(--text-primary){% else %}var(--text-secondary){% endif %}; background: {% if tab == 'victims' %}var(--accent-primary){% else %}transparent{% endif %}; border-radius: var(--radius-xs); text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="user-x" style="width: 14px; height: 14px;"></i>
+            Victims
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Modern Search Bar (CVE Style) -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-lg);">
+        <form method="GET" action="/{{ category }}" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: var(--space-md); align-items: end;">
+            {% if tab %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+            {% if selected_website %}<input type="hidden" name="website" value="{{ selected_website }}">{% endif %}
+            {% if year %}<input type="hidden" name="year" value="{{ year }}">{% endif %}
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">{% if category == 'news' %}Search Query{% elif category == 'ransomware' %}Search Query{% else %}Search Query{% endif %}</label>
+                <input type="text" name="search" placeholder="{% if category == 'news' %}Keywords, title, source...{% elif category == 'ransomware' %}Threat actor, victim, keyword...{% else %}Keywords, threat actor, victim...{% endif %}" value="{{ search }}" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+            </div>
+            
+            <div>
+                <label style="display: block; font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Sort By</label>
+                <select name="sort" style="width: 100%; padding: 10px 14px; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.2s;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'" onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                    <option value="published_date" {% if sort_by == 'published_date' %}selected{% endif %}>Date</option>
+                    <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Name</option>
+                </select>
+            </div>
+
+            <button type="submit" class="intel-btn-modern" style="padding: 10px 20px; font-size: 12px; min-height: 38px; white-space: nowrap;">
+                <i data-lucide="search" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                SEARCH
+            </button>
+        </form>
+    </div>
+
+    <div>
+        {% if items %}
+            {% for item in items %}
+            {% if category == 'news' %}
+                {% set has_image = item.image_url and item.image_url != '/static/blank.png' %}
+                {% set has_description = (item.meta_description and item.meta_description.strip()) or (item.description and item.description.strip()) %}
+                
+                <div data-article-id="{{ item.id }}" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-md); transition: all 0.2s; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;" onmouseover="this.style.borderColor='var(--border)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'; this.style.background='var(--bg-elevated)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)'; this.style.background='var(--bg-card)'">
+                    <div style="display: flex; gap: var(--space-lg); {% if not has_image %}flex-direction: column;{% endif %}">
+                        {% if has_image %}
+                        <div style="flex-shrink: 0;">
+                            <img src="{{ item.image_url }}" style="width: 160px; height: 100px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);" onerror="this.style.display='none'">
+                        </div>
+                        {% endif %}
+                        
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: var(--space-sm);">
+                            <div style="display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap;">
+                                <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source|clean_source }}</span>
+                                <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
+                            </div>
+                            <h3 style="font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; line-height: 1.5; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color 0.2s;" onclick="showArticleDetail({{ item.id }}, '{{ category }}')" onmouseover="this.style.textDecorationColor='var(--accent-primary)'" onmouseout="this.style.textDecorationColor='transparent'" title="Click to view details">{{ item.title }}</h3>
+                            {% if has_description %}
+                            <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ item.meta_description if item.meta_description else item.description }}</p>
+                            {% endif %}
+                            
+                            <!-- Action Buttons -->
+                            <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs);">
+                                {% if item.source_url %}
+                                <button onclick="showArticleDetail({{ item.id }}, '{{ category }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="square-arrow-out-up-right" style="width: 14px; height: 14px;"></i>
+                                    Open News
+                                </button>
+                                <button onclick="copyToClipboard('{{ item.source_url }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                    Copy Link
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Professional Ransomware Card -->
+                {% set raw_data_dict = item.raw_data|safe_dict if item.raw_data else {} %}
+                {% set is_leak = 'Leak' in (item.tags|join(' ')) or 'Data Breach' in (item.tags|join(' ')) %}
+                {% set is_market = 'Market' in (item.tags|join(' ')) %}
+                {% set is_victim = 'Victim' in (item.tags|join(' ')) %}
+                <div style="background: {% if is_leak %}linear-gradient(135deg, rgba(239, 68, 68, 0.05), var(--bg-card)){% elif is_market %}linear-gradient(135deg, rgba(139, 92, 246, 0.05), var(--bg-card)){% else %}var(--bg-card){% endif %}; border: 1px solid {% if is_leak %}rgba(239, 68, 68, 0.3){% elif is_market %}rgba(139, 92, 246, 0.3){% else %}var(--border-subtle){% endif %}; {% if category == 'ransomware' %}border-left: {% if is_leak %}4px{% elif is_market %}4px{% else %}3px{% endif %} solid {% if is_leak %}var(--severity-critical){% elif is_market %}#8B5CF6{% else %}var(--severity-critical){% endif %};{% endif %} border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-md); transition: all 0.2s; box-shadow: {% if is_leak %}0 4px 12px rgba(239, 68, 68, 0.15){% elif is_market %}0 4px 12px rgba(139, 92, 246, 0.15){% else %}var(--shadow-sm){% endif %}; position: relative; overflow: hidden;" onmouseover="this.style.borderColor='{% if is_leak %}rgba(239, 68, 68, 0.5){% elif is_market %}rgba(139, 92, 246, 0.5){% else %}var(--border){% endif %}'; {% if category == 'ransomware' %}this.style.borderLeftColor='{% if is_leak %}var(--severity-critical){% elif is_market %}#8B5CF6{% else %}var(--severity-critical){% endif %}';{% endif %} this.style.transform='translateY(-2px)'; this.style.boxShadow='{% if is_leak %}0 6px 16px rgba(239, 68, 68, 0.25){% elif is_market %}0 6px 16px rgba(139, 92, 246, 0.25){% else %}var(--shadow-md){% endif %}'; this.style.background='{% if is_leak %}linear-gradient(135deg, rgba(239, 68, 68, 0.08), var(--bg-elevated)){% elif is_market %}linear-gradient(135deg, rgba(139, 92, 246, 0.08), var(--bg-elevated)){% else %}var(--bg-elevated){% endif %}'" onmouseout="this.style.borderColor='{% if is_leak %}rgba(239, 68, 68, 0.3){% elif is_market %}rgba(139, 92, 246, 0.3){% else %}var(--border-subtle){% endif %}'; {% if category == 'ransomware' %}this.style.borderLeftColor='{% if is_leak %}var(--severity-critical){% elif is_market %}#8B5CF6{% else %}var(--severity-critical){% endif %}';{% endif %} this.style.transform='translateY(0)'; this.style.boxShadow='{% if is_leak %}0 4px 12px rgba(239, 68, 68, 0.15){% elif is_market %}0 4px 12px rgba(139, 92, 246, 0.15){% else %}var(--shadow-sm){% endif %}'; this.style.background='{% if is_leak %}linear-gradient(135deg, rgba(239, 68, 68, 0.05), var(--bg-card)){% elif is_market %}linear-gradient(135deg, rgba(139, 92, 246, 0.05), var(--bg-card)){% else %}var(--bg-card){% endif %}'">
+                    {% if is_leak %}
+                    <div style="position: absolute; top: 0; right: 0; padding: 4px 12px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); color: white; font-size: 9px; font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; border-bottom-left-radius: var(--radius-sm); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);">
+                        <i data-lucide="alert-triangle" style="width: 10px; height: 10px; display: inline-block; margin-right: 4px; vertical-align: middle;"></i>
+                        Critical Leak
+                    </div>
+                    {% elif is_market %}
+                    <div style="position: absolute; top: 0; right: 0; padding: 4px 12px; background: linear-gradient(135deg, #8B5CF6, #6D28D9); color: white; font-size: 9px; font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; border-bottom-left-radius: var(--radius-sm); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);">
+                        <i data-lucide="store" style="width: 10px; height: 10px; display: inline-block; margin-right: 4px; vertical-align: middle;"></i>
+                        Market
+                    </div>
+                    {% endif %}
+                    {% if is_leak %}
+                    <div style="position: absolute; top: 0; right: 0; padding: 4px 12px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); color: white; font-size: 9px; font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; border-bottom-left-radius: var(--radius-sm); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);">
+                        <i data-lucide="alert-triangle" style="width: 10px; height: 10px; display: inline-block; margin-right: 4px; vertical-align: middle;"></i>
+                        Critical Leak
+                    </div>
+                    {% endif %}
+                    <div style="display: flex; align-items: flex-start; gap: var(--space-md);">
+                        <!-- Group/Victim Icon -->
+                        <div style="flex-shrink: 0;">
+                            {% if category == 'ransomware' %}
+                                {% if is_leak %}
+                                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); border: 2px solid rgba(239, 68, 68, 0.5); position: relative;">
+                                    <i data-lucide="alert-triangle" style="width: 28px; height: 28px; color: white;"></i>
+                                    <div style="position: absolute; inset: -2px; border: 2px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); animation: pulse-ring 2s infinite;"></div>
+                                </div>
+                                {% elif 'Group' in item.title or group_name %}
+                                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(239, 68, 68, 0.3);">
+                                    <i data-lucide="users" style="width: 28px; height: 28px; color: white;"></i>
+                                </div>
+                                {% elif 'Victim' in item.title or 'victim' in item.title|lower %}
+                                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #DC2626, #991B1B); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(239, 68, 68, 0.3);">
+                                    <i data-lucide="user-x" style="width: 28px; height: 28px; color: white;"></i>
+                                </div>
+                                {% elif 'Post' in item.title or 'post' in item.title|lower %}
+                                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #F59E0B, #D97706); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(245, 158, 11, 0.3);">
+                                    <i data-lucide="file-text" style="width: 28px; height: 28px; color: white;"></i>
+                                </div>
+                                {% elif is_market %}
+                                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #8B5CF6, #6D28D9); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4); border: 2px solid rgba(139, 92, 246, 0.5);">
+                                    <i data-lucide="store" style="width: 28px; height: 28px; color: white;"></i>
+                                </div>
+                                {% else %}
+                                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--severity-critical), #DC2626); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid rgba(239, 68, 68, 0.3);">
+                                    <i data-lucide="shield-alert" style="width: 28px; height: 28px; color: white;"></i>
+                                </div>
+                                {% endif %}
+                            {% elif category == 'cert' %}
+                                {% set raw_data_dict = item.raw_data|safe_dict %}
+                                {% set country_code = raw_data_dict.get('country_code', '') if raw_data_dict else '' %}
+                                {% set country_name = raw_data_dict.get('country', '') if raw_data_dict else '' %}
+                                {% set source_lower = item.source|lower if item.source else '' %}
+                                {% if 'us' in source_lower or 'usa' in source_lower or 'us-cert' in source_lower or country_code == 'US' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #B22234, #3C3B6E); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇺🇸</span>
+                                </div>
+                                {% elif 'uk' in source_lower or 'britain' in source_lower or 'ncsc' in source_lower or country_code == 'GB' or country_code == 'UK' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #012169, #C8102E); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇬🇧</span>
+                                </div>
+                                {% elif 'canada' in source_lower or 'ccs' in source_lower or country_code == 'CA' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #FF0000, #FF0000); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇨🇦</span>
+                                </div>
+                                {% elif 'australia' in source_lower or 'acsc' in source_lower or country_code == 'AU' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #012169, #E4002B); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇦🇺</span>
+                                </div>
+                                {% elif 'germany' in source_lower or 'bsi' in source_lower or country_code == 'DE' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #000000, #DD0000, #FFCE00); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇩🇪</span>
+                                </div>
+                                {% elif 'france' in source_lower or 'anssi' in source_lower or country_code == 'FR' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #002654, #FFFFFF, #ED2939); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇫🇷</span>
+                                </div>
+                                {% elif 'japan' in source_lower or 'jpcert' in source_lower or country_code == 'JP' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #FFFFFF, #BC002D); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇯🇵</span>
+                                </div>
+                                {% elif 'netherlands' in source_lower or 'ncsc-nl' in source_lower or country_code == 'NL' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #AE1C28, #FFFFFF, #21468B); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇳🇱</span>
+                                </div>
+                                {% elif 'sweden' in source_lower or 'msb' in source_lower or country_code == 'SE' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #006AA7, #FECC00); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇸🇪</span>
+                                </div>
+                                {% elif 'switzerland' in source_lower or 'ncsc-ch' in source_lower or country_code == 'CH' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #FF0000, #FFFFFF); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇨🇭</span>
+                                </div>
+                                {% elif 'italy' in source_lower or 'csirt' in source_lower or country_code == 'IT' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #009246, #FFFFFF, #CE2B37); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇮🇹</span>
+                                </div>
+                                {% elif 'spain' in source_lower or 'incibe' in source_lower or country_code == 'ES' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #AA151B, #F1BF00); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇪🇸</span>
+                                </div>
+                                {% elif 'singapore' in source_lower or 'csa' in source_lower or country_code == 'SG' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ED2939, #FFFFFF); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇸🇬</span>
+                                </div>
+                                {% elif 'south korea' in source_lower or 'korea' in source_lower or 'kr-cert' in source_lower or country_code == 'KR' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #CE1126, #FFFFFF, #0047A0); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇰🇷</span>
+                                </div>
+                                {% elif 'israel' in source_lower or 'cert-il' in source_lower or country_code == 'IL' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0038B8, #FFFFFF); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇮🇱</span>
+                                </div>
+                                {% elif 'eu' in source_lower or 'cert-eu' in source_lower or country_code == 'EU' %}
+                                <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #003399, #FFCC00); box-shadow: var(--shadow-sm);">
+                                    <span style="font-size: 20px;">🇪🇺</span>
+                                </div>
+                                {% else %}
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                                    <i data-lucide="globe" style="width: 24px; height: 24px; color: white;"></i>
+                                </div>
+                                {% endif %}
+                            {% elif item.source == 'CERT-In' %}
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #FF9933, #FFFFFF, #138808); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle); position: relative; overflow: hidden;">
+                                    <div style="position: absolute; inset: 0; background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);"></div>
+                                    <span style="font-size: 18px; font-weight: var(--fw-bold); color: #000080; z-index: 1;">IN</span>
+                                </div>
+                            {% elif item.source == 'RBI' %}
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #1E3A8A, #3B82F6); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                                    <span style="font-size: 16px; font-weight: var(--fw-bold); color: white; letter-spacing: 0.05em;">RBI</span>
+                                </div>
+                            {% elif item.source == 'IRDAI' %}
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #059669, #10B981); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); border: 1px solid var(--border-subtle);">
+                                    <span style="font-size: 14px; font-weight: var(--fw-bold); color: white; letter-spacing: 0.05em;">IRDAI</span>
+                                </div>
+                            {% else %}
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent);">
+                                    <i data-lucide="file-text" style="width: 24px; height: 24px; color: white;"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div style="flex: 1; min-width: 0;">
+                            <!-- Header Row -->
+                            <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs); flex-wrap: wrap;">
+                                {% if item.severity %}
+                                <span class="severity-pill pill-{{ item.severity|lower }}" style="padding: 4px 10px; font-size: 10px;">{{ item.severity }}</span>
+                                {% endif %}
+                                <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source|clean_source }}</span>
+                                <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
+                            </div>
+                            
+                            <!-- Title -->
+                            <h3 style="font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; line-height: 1.5;">
+                                <a href="{{ item.source_url or '#' }}" target="_blank" style="color: inherit; text-decoration: none;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                            </h3>
+                            
+                            <!-- Description (only show if not redundant with title/metrics) -->
+                            {% if item.description and category != 'ransomware' %}
+                            <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ item.description }}</p>
+                            {% elif category == 'ransomware' and item.description and not is_victim %}
+                            <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ item.description }}</p>
+                            {% elif category == 'ransomware' and is_victim and item.description %}
+                            <!-- For victims, only show description if it's not redundant (e.g., attack date or unique details) -->
+                            <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;">{{ item.description }}</p>
+                            {% endif %}
+                            
+                            <!-- Data Leak Key Metrics (WOW Factor!) -->
+                            {% if is_leak and raw_data_dict %}
+                            {% if raw_data_dict.get('url') or raw_data_dict.get('link') or raw_data_dict.get('victim') or raw_data_dict.get('group_name') or raw_data_dict.get('size') or raw_data_dict.get('file_count') or raw_data_dict.get('sector') or raw_data_dict.get('country') %}
+                            <div style="display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-sm); padding: var(--space-md); background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05)); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm); border-left: 3px solid var(--severity-critical);">
+                                <!-- Leak URL / Link (Most Important - Full Width) -->
+                                {% if raw_data_dict.get('url') or raw_data_dict.get('link') %}
+                                {% set leak_url = raw_data_dict.url or raw_data_dict.link %}
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(239, 68, 68, 0.15); border: 2px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-sm); flex: 1 1 100%; margin-bottom: var(--space-xs);">
+                                    <i data-lucide="link" style="width: 18px; height: 18px; color: var(--severity-critical); flex-shrink: 0;"></i>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Leak URL</div>
+                                        <a href="{{ leak_url }}" target="_blank" style="font-size: 12px; font-weight: var(--fw-bold); color: var(--severity-critical); text-decoration: none; font-family: var(--font-mono); word-break: break-all; display: block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ leak_url|replace('https://', '')|replace('http://', '')|truncate(60) }}</a>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Group Name -->
+                                {% if raw_data_dict.get('group_name') and raw_data_dict.group_name != 'Unknown' %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="users" style="width: 16px; height: 16px; color: #8B5CF6;"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Group:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-bold); color: var(--text-primary);">{{ raw_data_dict.group_name }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('victim') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="building" style="width: 16px; height: 16px; color: var(--severity-critical);"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Victim:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-bold); color: var(--text-primary);">{{ raw_data_dict.victim }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('size') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="database" style="width: 16px; height: 16px; color: #8B5CF6;"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Size:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-bold); color: var(--text-primary); font-family: var(--font-mono);">{{ raw_data_dict.size }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('file_count') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="file" style="width: 16px; height: 16px; color: #3B82F6;"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Files:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-bold); color: var(--text-primary);">{{ raw_data_dict.file_count }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('sector') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="briefcase" style="width: 16px; height: 16px; color: var(--severity-medium);"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Sector:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw_data_dict.sector }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('country') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="map-pin" style="width: 16px; height: 16px; color: var(--severity-low);"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Country:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw_data_dict.country }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            
+                            <!-- Market Key Metrics (Special Display) -->
+                            {% if is_market and raw_data_dict %}
+                            {% if raw_data_dict.get('url') or raw_data_dict.get('website') or raw_data_dict.get('market_name') or raw_data_dict.get('status') or raw_data_dict.get('location') or raw_data_dict.get('country') or raw_data_dict.get('first_seen') or raw_data_dict.get('last_seen') %}
+                            <div style="display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-sm); padding: var(--space-md); background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(139, 92, 246, 0.03)); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-sm); border-left: 3px solid #8B5CF6;">
+                                <!-- Market URL / Link (Most Important - Full Width) -->
+                                {% if raw_data_dict.get('url') or raw_data_dict.get('website') %}
+                                {% set market_url = raw_data_dict.url or raw_data_dict.website %}
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(139, 92, 246, 0.15); border: 2px solid rgba(139, 92, 246, 0.4); border-radius: var(--radius-sm); flex: 1 1 100%; margin-bottom: var(--space-xs);">
+                                    <i data-lucide="store" style="width: 18px; height: 18px; color: #8B5CF6; flex-shrink: 0;"></i>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Market URL</div>
+                                        <a href="{{ market_url }}" target="_blank" style="font-size: 12px; font-weight: var(--fw-bold); color: #8B5CF6; text-decoration: none; font-family: var(--font-mono); word-break: break-all; display: block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ market_url|replace('https://', '')|replace('http://', '')|truncate(60) }}</a>
+                                    </div>
+                                </div>
+                                {% elif raw_data_dict.get('market_name') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="tag" style="width: 16px; height: 16px; color: #8B5CF6;"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Market:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-bold); color: var(--text-primary);">{{ raw_data_dict.market_name }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('status') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: {% if raw_data_dict.status|lower == 'active' %}rgba(34, 197, 94, 0.15){% else %}rgba(234, 179, 8, 0.15){% endif %}; border: 1px solid {% if raw_data_dict.status|lower == 'active' %}rgba(34, 197, 94, 0.3){% else %}rgba(234, 179, 8, 0.3){% endif %}; border-radius: var(--radius-sm);">
+                                    <i data-lucide="{% if raw_data_dict.status|lower == 'active' %}check-circle{% else %}alert-circle{% endif %}" style="width: 16px; height: 16px; color: {% if raw_data_dict.status|lower == 'active' %}#22C55E{% else %}var(--severity-medium){% endif %};"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Status:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-bold); color: var(--text-primary); text-transform: capitalize;">{{ raw_data_dict.status }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('location') or raw_data_dict.get('country') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="map-pin" style="width: 16px; height: 16px; color: var(--severity-low);"></i>
+                                    <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Location:</span>
+                                    <span style="font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw_data_dict.location or raw_data_dict.country }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if raw_data_dict.get('first_seen') or raw_data_dict.get('last_seen') %}
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                    <i data-lucide="calendar" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                                    {% if raw_data_dict.get('first_seen') %}
+                                    <span style="font-size: 9px; color: var(--text-muted);">First:</span>
+                                    <span style="font-size: 11px; font-weight: var(--fw-medium); color: var(--text-secondary); font-family: var(--font-mono);">{{ raw_data_dict.first_seen[:10] }}</span>
+                                    {% endif %}
+                                    {% if raw_data_dict.get('last_seen') %}
+                                    {% if raw_data_dict.get('first_seen') %}<span style="margin: 0 6px; color: var(--border);">•</span>{% endif %}
+                                    <span style="font-size: 9px; color: var(--text-muted);">Last:</span>
+                                    <span style="font-size: 11px; font-weight: var(--fw-medium); color: var(--text-secondary); font-family: var(--font-mono);">{{ raw_data_dict.last_seen[:10] }}</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            
+                            <!-- Ransomware Victim Key Metrics (only show sector if available, since victim/group/country are in title/description) -->
+                            {% if category == 'ransomware' and item.raw_data %}
+                            {% set raw = item.raw_data|safe_dict %}
+                            {% set is_victim = 'Victim' in (item.tags|join(' ')) %}
+                            
+                            {% if is_victim and raw.get('sector') %}
+                            <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-sm); padding: var(--space-md); background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), var(--bg-card)); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-md); border-left: 3px solid var(--severity-critical);">
+                                <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+                                    <!-- Sector (only unique info not in title/description) -->
+                                    <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: var(--radius-sm);">
+                                        <i data-lucide="briefcase" style="width: 16px; height: 16px; color: var(--severity-medium);"></i>
+                                        <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">Sector:</span>
+                                        <span style="font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw.sector }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% elif not is_victim and (raw.get('primary_onion_url') or raw.get('current_onion_urls') or raw.get('available_locations') or raw.get('status') or raw.get('location_count') or raw.get('first_seen') or raw.get('last_seen')) %}
+                            <!-- Ransomware Group Key Metrics (Professional Display) -->
+                            <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-sm); padding: var(--space-md); background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card)); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); border-left: 3px solid var(--accent-primary);">
+                                <!-- Primary Onion URL (Most Important!) -->
+                                {% if raw.get('primary_onion_url') %}
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(139, 92, 246, 0.15); border: 2px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-sm);">
+                                    <i data-lucide="link" style="width: 18px; height: 18px; color: #8B5CF6; flex-shrink: 0;"></i>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Current Onion URL</div>
+                                        <a href="{{ raw.primary_onion_url }}" target="_blank" style="font-size: 12px; font-weight: var(--fw-bold); color: #8B5CF6; text-decoration: none; font-family: var(--font-mono); word-break: break-all; display: block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ raw.primary_onion_url|replace('http://', '')|replace('https://', '')|truncate(50) }}</a>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Status and Location Count -->
+                                <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+                                    <!-- Status -->
+                                    {% if raw.get('status') %}
+                                    <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: {% if raw.status == 'Active' %}rgba(34, 197, 94, 0.15){% else %}rgba(239, 68, 68, 0.15){% endif %}; border: 1px solid {% if raw.status == 'Active' %}rgba(34, 197, 94, 0.3){% else %}rgba(239, 68, 68, 0.3){% endif %}; border-radius: var(--radius-sm);">
+                                        <i data-lucide="{% if raw.status == 'Active' %}check-circle{% else %}x-circle{% endif %}" style="width: 16px; height: 16px; color: {% if raw.status == 'Active' %}#22C55E{% else %}var(--severity-critical){% endif %};"></i>
+                                        <span style="font-size: 11px; font-weight: var(--fw-bold); color: var(--text-primary); text-transform: uppercase;">{{ raw.status }}</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Available Locations Count -->
+                                    {% if raw.get('available_count') is not none %}
+                                    <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--radius-sm);">
+                                        <i data-lucide="server" style="width: 16px; height: 16px; color: #3B82F6;"></i>
+                                        <span style="font-size: 11px; font-weight: var(--fw-bold); color: var(--text-primary);">{{ raw.available_count }}</span>
+                                        <span style="font-size: 10px; color: var(--text-muted);">active</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Total Locations -->
+                                    {% if raw.get('location_count') is not none %}
+                                    <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-sm);">
+                                        <i data-lucide="network" style="width: 16px; height: 16px; color: #8B5CF6;"></i>
+                                        <span style="font-size: 11px; font-weight: var(--fw-bold); color: var(--text-primary);">{{ raw.location_count }}</span>
+                                        <span style="font-size: 10px; color: var(--text-muted);">locations</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- First Seen / Last Seen -->
+                                    {% if raw.get('first_seen') or raw.get('last_seen') %}
+                                    <div style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                        <i data-lucide="calendar" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                                        {% if raw.get('first_seen') %}
+                                        <span style="font-size: 9px; color: var(--text-muted);">First:</span>
+                                        <span style="font-size: 10px; font-weight: var(--fw-medium); color: var(--text-secondary); font-family: var(--font-mono);">{{ raw.first_seen[:10] }}</span>
+                                        {% endif %}
+                                        {% if raw.get('last_seen') %}
+                                        {% if raw.get('first_seen') %}<span style="margin: 0 6px; color: var(--border);">•</span>{% endif %}
+                                        <span style="font-size: 9px; color: var(--text-muted);">Last:</span>
+                                        <span style="font-size: 10px; font-weight: var(--fw-medium); color: var(--text-secondary); font-family: var(--font-mono);">{{ raw.last_seen[:10] }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- All Onion URLs (if multiple) -->
+                                {% if raw.get('current_onion_urls') and raw.current_onion_urls|length > 1 %}
+                                <div style="padding-top: var(--space-xs); border-top: 1px solid var(--border-subtle);">
+                                    <div style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-xs);">All Onion URLs ({{ raw.current_onion_urls|length }})</div>
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        {% for onion_url in raw.current_onion_urls[:3] %}
+                                        <a href="{{ onion_url }}" target="_blank" style="font-size: 11px; font-weight: var(--fw-medium); color: #8B5CF6; text-decoration: none; font-family: var(--font-mono); padding: 6px 10px; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-xs); word-break: break-all;" onmouseover="this.style.background='rgba(139, 92, 246, 0.2)'; this.style.borderColor='#8B5CF6'" onmouseout="this.style.background='rgba(139, 92, 246, 0.1)'; this.style.borderColor='rgba(139, 92, 246, 0.2)'">{{ onion_url|replace('http://', '')|replace('https://', '')|truncate(60) }}</a>
+                                        {% endfor %}
+                                        {% if raw.current_onion_urls|length > 3 %}
+                                        <span style="font-size: 10px; color: var(--text-muted); font-style: italic;">+ {{ raw.current_onion_urls|length - 3 }} more</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            
+                            <!-- Action Buttons -->
+                            {% if category == 'ransomware' and item.raw_data %}
+                            {% set raw = item.raw_data|safe_dict %}
+                            {% set primary_onion = raw.get('primary_onion_url') or '' %}
+                            {% set group_name = raw.get('group_name') or raw.get('name') or '' %}
+                            {% set is_victim = 'Victim' in (item.tags|join(' ')) %}
+                            
+                            {% if is_victim %}
+                            <!-- Victim item -->
+                            <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
+                                {% if group_name %}
+                                <a href="https://api.ransomware.live/v2/groupvictims/{{ group_name }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                    View Victims
+                                </a>
+                                <a href="https://api.ransomware.live/v2/group/{{ group_name }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="info" style="width: 14px; height: 14px;"></i>
+                                    View Group
+                                </a>
+                                {% endif %}
+                                <button onclick="copyToClipboard('{{ item.source_url or item.title }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                    Copy Link
+                                </button>
+                            </div>
+                            {% elif primary_onion %}
+                            <!-- Group has onion URL -->
+                            <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
+                                <a href="{{ primary_onion }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); color: #8B5CF6;" onmouseover="this.style.background='rgba(139, 92, 246, 0.2)'; this.style.borderColor='#8B5CF6'" onmouseout="this.style.background='rgba(139, 92, 246, 0.1)'; this.style.borderColor='rgba(139, 92, 246, 0.3)'">
+                                    <i data-lucide="link" style="width: 14px; height: 14px;"></i>
+                                    Visit Onion Site
+                                </a>
+                                {% if group_name %}
+                                <a href="https://api.ransomware.live/v2/group/{{ group_name }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="info" style="width: 14px; height: 14px;"></i>
+                                    View Details
+                                </a>
+                                {% endif %}
+                                <button onclick="copyToClipboard('{{ primary_onion }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                    Copy Link
+                                </button>
+                            </div>
+                            {% elif item.source_url %}
+                            <!-- Fallback to ransomware.live page -->
+                            <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
+                                <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                    View Details
+                                </a>
+                                <button onclick="copyToClipboard('{{ item.source_url }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                    Copy Link
+                                </button>
+                            </div>
+                            {% endif %}
+                            {% elif item.source_url %}
+                            <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
+                                <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                    Open Advisory
+                                </a>
+                                <button onclick="copyToClipboard('{{ item.source_url }}')" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-primary)'">
+                                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                    Copy Link
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Compact Ransomware Metadata from RansomLook -->
+                    {% if category == 'ransomware' and item.raw_data %}
+                    {% set raw = item.raw_data|safe_dict %}
+                    <!-- Compact Key Metrics Bar -->
+                    {% if raw.get('post_count') is not none or raw.get('victim_count') is not none or raw.get('status') or raw.get('country') or raw.get('sector') %}
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-subtle);">
+                        {% if raw.get('post_count') is not none %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm);">
+                            <i data-lucide="file-text" style="width: 12px; height: 12px; color: var(--severity-critical);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw.post_count }}</span>
+                            <span style="font-size: 9px; color: var(--text-muted);">posts</span>
+                        </div>
+                        {% endif %}
+                        {% if raw.get('victim_count') is not none %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm);">
+                            <i data-lucide="user-x" style="width: 12px; height: 12px; color: var(--severity-critical);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw.victim_count }}</span>
+                            <span style="font-size: 9px; color: var(--text-muted);">victims</span>
+                        </div>
+                        {% endif %}
+                        {% if raw.get('status') %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.2); border-radius: var(--radius-sm);">
+                            <i data-lucide="activity" style="width: 12px; height: 12px; color: var(--severity-medium);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw.status }}</span>
+                        </div>
+                        {% endif %}
+                        {% if raw.get('country') %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-sm);">
+                            <i data-lucide="map-pin" style="width: 12px; height: 12px; color: var(--severity-low);"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw.country }}</span>
+                        </div>
+                        {% endif %}
+                        {% if raw.get('sector') %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-sm);">
+                            <i data-lucide="building" style="width: 12px; height: 12px; color: #8B5CF6;"></i>
+                            <span style="font-size: 11px; font-weight: var(--fw-semibold); color: var(--text-primary);">{{ raw.sector }}</span>
+                        </div>
+                        {% endif %}
+                        {% if raw.get('first_seen') %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                            <i data-lucide="calendar" style="width: 12px; height: 12px; color: var(--text-muted);"></i>
+                            <span style="font-size: 10px; color: var(--text-muted);">First:</span>
+                            <span style="font-size: 10px; font-weight: var(--fw-medium); color: var(--text-secondary); font-family: var(--font-mono);">{{ raw.first_seen }}</span>
+                        </div>
+                        {% endif %}
+                        {% if raw.get('last_seen') %}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                            <i data-lucide="calendar" style="width: 12px; height: 12px; color: var(--text-muted);"></i>
+                            <span style="font-size: 10px; color: var(--text-muted);">Last:</span>
+                            <span style="font-size: 10px; font-weight: var(--fw-medium); color: var(--text-secondary); font-family: var(--font-mono);">{{ raw.last_seen }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Detailed Metadata Grid (Expandable/Collapsible) -->
+                    {% if raw.get('website') or raw.get('locations') or raw.get('mirrors') or raw.get('forums') or raw.get('fqdn') or raw.get('type') or raw.get('http') %}
+                    <div style="margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border-subtle);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-sm);">
+                        
+                            <!-- Website -->
+                            {% if raw.get('website') %}
+                            <div style="padding: var(--space-sm); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <i data-lucide="globe" style="width: 12px; height: 12px; color: var(--accent-primary);"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Website</span>
+                                </div>
+                                <a href="{{ raw.website }}" target="_blank" style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--accent-primary); word-break: break-all; font-family: var(--font-mono); text-decoration: none; display: block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ raw.website|truncate(35) }}</a>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Locations -->
+                            {% if raw.get('locations') and raw.locations|length > 0 %}
+                            <div style="padding: var(--space-sm); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                    <i data-lucide="map" style="width: 12px; height: 12px; color: var(--severity-low);"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Locations ({{ raw.locations|length }})</span>
+                                </div>
+                                <div style="display: flex; flex-wrap: gap: 4px;">
+                                    {% for location in raw.locations[:4] %}
+                                    <span style="padding: 2px 6px; font-size: 9px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xs); color: var(--text-secondary);">{{ location|truncate(15) }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Mirrors -->
+                            {% if raw.get('mirrors') and raw.mirrors|length > 0 %}
+                            <div style="padding: var(--space-sm); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                    <i data-lucide="copy" style="width: 12px; height: 12px; color: var(--accent-primary);"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Mirrors ({{ raw.mirrors|length }})</span>
+                                </div>
+                                <div style="display: flex; flex-wrap: gap: 4px;">
+                                    {% for mirror in raw.mirrors[:2] %}
+                                    <a href="{{ mirror }}" target="_blank" style="padding: 2px 6px; font-size: 9px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xs); color: var(--accent-primary); text-decoration: none; font-family: var(--font-mono);" onmouseover="this.style.borderColor='var(--accent-primary)'" onmouseout="this.style.borderColor='var(--border-subtle)'">{{ mirror|truncate(20) }}</a>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Forums -->
+                            {% if raw.get('forums') and raw.forums|length > 0 %}
+                            <div style="padding: var(--space-sm); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                    <i data-lucide="message-square" style="width: 12px; height: 12px; color: #8B5CF6;"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Forums ({{ raw.forums|length }})</span>
+                                </div>
+                                <div style="display: flex; flex-wrap: gap: 4px;">
+                                    {% for forum in raw.forums[:2] %}
+                                    <a href="{{ forum }}" target="_blank" style="padding: 2px 6px; font-size: 9px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xs); color: #8B5CF6; text-decoration: none; font-family: var(--font-mono);" onmouseover="this.style.borderColor='#8B5CF6'" onmouseout="this.style.borderColor='var(--border-subtle)'">{{ forum|truncate(20) }}</a>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Leak Site -->
+                            {% if raw.get('leak_site') %}
+                            <div style="padding: var(--space-sm); background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm);">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <i data-lucide="alert-triangle" style="width: 12px; height: 12px; color: var(--severity-critical);"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Leak Site</span>
+                                </div>
+                                <a href="{{ raw.leak_site }}" target="_blank" style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--severity-critical); word-break: break-all; font-family: var(--font-mono); text-decoration: none; display: block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ raw.leak_site|truncate(35) }}</a>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Mirror (for posts) -->
+                            {% if raw.get('mirror') %}
+                            <div style="padding: var(--space-sm); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <i data-lucide="link" style="width: 12px; height: 12px; color: var(--accent-primary);"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Mirror</span>
+                                </div>
+                                <a href="{{ raw.mirror }}" target="_blank" style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--accent-primary); word-break: break-all; font-family: var(--font-mono); text-decoration: none; display: block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ raw.mirror|truncate(35) }}</a>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Infrastructure Details (Compact) -->
+                            {% if raw.get('fqdn') or raw.get('type') or raw.get('http') %}
+                            <div style="padding: var(--space-sm); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); grid-column: span 2;">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                    <i data-lucide="server" style="width: 12px; height: 12px; color: #3B82F6;"></i>
+                                    <span style="font-size: 9px; font-weight: var(--fw-bold); color: var(--text-muted); text-transform: uppercase;">Infrastructure</span>
+                                </div>
+                                <div style="display: flex; flex-wrap: gap: var(--space-xs); align-items: center;">
+                                    {% if raw.get('fqdn') %}
+                                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                        <span style="font-size: 8px; color: var(--text-muted);">FQDN:</span>
+                                        <span style="font-size: 9px; font-family: var(--font-mono); color: var(--text-secondary);">{{ raw.fqdn|truncate(25) }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if raw.get('type') %}
+                                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                        <span style="font-size: 8px; color: var(--text-muted);">Type:</span>
+                                        <span style="padding: 2px 6px; font-size: 9px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xs); color: var(--text-secondary);">{{ raw.type }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if raw.get('http') %}
+                                        {% set http_data = raw.http if raw.http is mapping else {} %}
+                                        {% if http_data.get('error') %}
+                                        <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                            <span style="font-size: 8px; color: var(--text-muted);">Status:</span>
+                                            <span style="padding: 2px 6px; font-size: 9px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-xs); color: var(--severity-critical);">{{ http_data.error|truncate(15) }}</span>
+                                        </div>
+                                        {% elif http_data.get('status') %}
+                                        <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                            <span style="font-size: 8px; color: var(--text-muted);">Status:</span>
+                                            <span style="padding: 2px 6px; font-size: 9px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: var(--radius-xs); color: #22C55E;">{{ http_data.status }}</span>
+                                        </div>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            {% endif %}
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 64px; padding-bottom: 80px;">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}{% if tab %}&tab={{ tab }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}{% if year %}&year={{ year }}{% endif %}{% if month %}&month={{ month }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}" class="intel-btn" style="background: var(--bg-elevated); border: 2px solid var(--border); color: var(--text-primary); padding: 12px 28px;">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px; margin-right: 6px;"></i>
+                    Previous
+                </a>
+                {% endif %}
+                <div style="display: flex; align-items: center; font-size: 14px; font-weight: 700; color: var(--text-secondary); padding: 12px 24px; background: var(--bg-elevated); border: 2px solid var(--border); border-radius: var(--radius-md);">
+                    Page {{ page }} of {{ total_pages }}
+                </div>
+                {% if page < total_pages %}
+                <a href="?page={{ page + 1 }}{% if tab %}&tab={{ tab }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}{% if year %}&year={{ year }}{% endif %}{% if month %}&month={{ month }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}" class="intel-btn" style="background: var(--bg-elevated); border: 2px solid var(--border); color: var(--text-primary); padding: 12px 28px;">
+                    Next
+                    <i data-lucide="chevron-right" style="width: 16px; height: 16px; margin-left: 6px;"></i>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div style="padding: 120px; text-align: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;">
+                <i data-lucide="database-zap" style="width: 64px; height: 64px; color: var(--text-muted); margin-bottom: 24px; opacity: 0.5;"></i>
+                <h3 style="font-size: 24px; font-weight: 800; margin-bottom: 12px;">Intelligence Void</h3>
+                <p style="color: var(--text-muted); font-size: 16px;">Current parameters yield zero identifiable results.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Test function to verify modal works
+window.testModal = function() {
+    console.log('Testing modal...');
+    const modal = document.getElementById('articleDetailModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        console.log('Modal should be visible now');
+    } else {
+        console.error('Modal not found!');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+    
+    const handleSync = (id, endpoint, name) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', () => {
+            showNotification(`Synchronizing ${name}...`, 'info');
+            fetch(endpoint, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success || data.status === 'success') {
+                        // Poll job status until completion
+                        const pollInterval = setInterval(() => {
+                            fetch('/api/job/status')
+                                .then(r => r.json())
+                                .then(status => {
+                                    if (!status.running && status.status === 'completed') {
+                                        clearInterval(pollInterval);
+                                        showNotification(`${name} synchronized`, 'success');
+                                        setTimeout(() => window.location.reload(), 500);
+                                    } else if (!status.running && status.status === 'failed') {
+                                        clearInterval(pollInterval);
+                                        showNotification(`${name} sync failed: ` + (status.message || 'Unknown error'), 'error');
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error('Error checking job status:', err);
+                                    clearInterval(pollInterval);
+                                    // Fallback: reload after 3 seconds if status check fails
+                                    setTimeout(() => window.location.reload(), 3000);
+                                });
+                        }, 1000); // Check every second
+                        
+                        // Timeout after 5 minutes
+                        setTimeout(() => {
+                            clearInterval(pollInterval);
+                            showNotification(`${name} sync timeout - refreshing page`, 'info');
+                            window.location.reload();
+                        }, 300000);
+                    } else {
+                        showNotification(`Failed to start ${name} sync: ` + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(e => {
+                    showNotification('Error: ' + e.message, 'error');
+                });
+        });
+    };
+
+    handleSync('refreshNews', '/api/fetch/news', 'News');
+    handleSync('refreshRansomware', '/api/fetch/ransomware', 'Threat Intelligence');
+});
+
+// Add CSS animations for leak cards
+if (!document.getElementById('leak-animations')) {
+    const style = document.createElement('style');
+    style.id = 'leak-animations';
+    style.textContent = `
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        @keyframes pulse-ring {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(1.3); }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function refreshAgency(agency) {
+    const agencyNames = {
+        'cert': 'International CERT',
+        'cert-in': 'CERT-In',
+        'rbi': 'RBI',
+        'irdai': 'IRDAI'
+    };
+    showNotification(`Fetching ${agencyNames[agency] || agency} advisories...`, 'info');
+    fetch(`/api/fetch/${agency}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success || data.status === 'success') {
+                showNotification(`${agencyNames[agency] || agency} advisories synchronized`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            }
+        })
+        .catch(e => showNotification('Error: ' + e.message, 'error'));
+}
+
+function hardRefreshCertIn() {
+    showNotification('Hard refreshing CERT-In (fetching current year to 2024)...', 'info');
+    fetch('/api/fetch/cert-in/hard', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success || data.status === 'success') {
+                showNotification(`Hard refresh completed: ${data.fetched || 0} advisories fetched`, 'success');
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                showNotification('Hard refresh failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(e => showNotification('Error: ' + e.message, 'error'));
+}
+
+function globalRefresh() {
+    showNotification('Refreshing all advisory sources...', 'info');
+    Promise.all([
+        fetch('/api/fetch/cert-in', { method: 'POST' }),
+        fetch('/api/fetch/rbi', { method: 'POST' }),
+        fetch('/api/fetch/irdai', { method: 'POST' })
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(results => {
+        const successCount = results.filter(r => r.success || r.status === 'success').length;
+        showNotification(`Global refresh completed: ${successCount}/${results.length} sources synchronized`, 'success');
+        setTimeout(() => window.location.reload(), 2000);
+    })
+    .catch(e => showNotification('Error: ' + e.message, 'error'));
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Link copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        showNotification('Failed to copy link', 'error');
+    });
+}
+
+// Article Detail Modal Functions (Feedly-style)
+let currentArticleDetailId = null;
+let currentArticleList = [];
+let currentArticleIndex = -1;
+
+function showArticleDetail(articleId, category) {
+    console.log('showArticleDetail called with:', articleId, category);
+    currentArticleDetailId = articleId;
+    const modal = document.getElementById('articleDetailModal');
+    const body = document.getElementById('articleDetailBody');
+    
+    if (!modal) {
+        console.error('Article detail modal not found');
+        alert('Modal element not found. Please check the page structure.');
+        return;
+    }
+    
+    if (!body) {
+        console.error('Article detail body not found');
+        return;
+    }
+    
+    console.log('Modal found, adding active class');
+    // Force display with multiple methods
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.classList.add('active');
+    // Ensure it's visible
+    setTimeout(() => {
+        if (getComputedStyle(modal).display === 'none') {
+            modal.style.setProperty('display', 'flex', 'important');
+        }
+    }, 10);
+    
+    body.innerHTML = '<div style="text-align: center; padding: 60px;"><i data-lucide="loader" class="spin-icon"></i><p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p></div>';
+    lucide.createIcons();
+    
+    // Get current article list for navigation
+    const articleCards = document.querySelectorAll('[data-article-id]');
+    currentArticleList = Array.from(articleCards).map(card => parseInt(card.getAttribute('data-article-id')));
+    currentArticleIndex = currentArticleList.indexOf(articleId);
+    
+    // Update navigation buttons
+    const prevBtn = document.getElementById('articleNavPrev');
+    const nextBtn = document.getElementById('articleNavNext');
+    if (prevBtn) prevBtn.style.display = currentArticleIndex > 0 ? 'flex' : 'none';
+    if (nextBtn) nextBtn.style.display = currentArticleIndex < currentArticleList.length - 1 ? 'flex' : 'none';
+    
+    // Fetch article details
+    const isNews = category === 'news';
+    const endpoint = isNews ? `/api/article/${articleId}/detail` : `/api/intelligence?id=${articleId}`;
+    fetch(endpoint)
+        .then(r => {
+            console.log('Response status:', r.status);
+            if (!r.ok) {
+                throw new Error(`HTTP error! status: ${r.status}`);
+            }
+            return r.json();
+        })
+        .then(d => {
+            console.log('Response data:', d);
+            if (d.success && d.item) {
+                renderArticleDetail(d.item, isNews);
+            } else {
+                body.innerHTML = `<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article: ${d.error || 'Unknown error'}</p></div>`;
+            }
+            lucide.createIcons();
+        })
+        .catch(err => {
+            console.error('Fetch error:', err);
+            body.innerHTML = `<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article: ${err.message}</p><p style="font-size: 12px; margin-top: 8px;">Check browser console for details</p></div>`;
+            lucide.createIcons();
+        });
+}
+
+function renderArticleDetail(item, isNews) {
+    const body = document.getElementById('articleDetailBody');
+    const date = item.published_date ? new Date(item.published_date).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    }) : 'N/A';
+    const timeAgo = item.published_date ? getTimeAgo(new Date(item.published_date)) : '';
+    
+    const imageHtml = item.image_url ? `
+        <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title || '')}" class="article-detail-image" onerror="this.style.display='none'">
+    ` : '';
+    
+    // Parse tags - handle both JSON string and array
+    let tagsArray = [];
+    if (item.tags) {
+        if (typeof item.tags === 'string') {
+            // Try to parse as JSON first
+            try {
+                const parsed = JSON.parse(item.tags);
+                if (Array.isArray(parsed)) {
+                    tagsArray = parsed;
+                } else {
+                    // If not JSON, split by comma
+                    tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
+                }
+            } catch (e) {
+                // If JSON parse fails, split by comma
+                tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
+            }
+        } else if (Array.isArray(item.tags)) {
+            tagsArray = item.tags;
+        }
+    }
+    
+    const tagsHtml = tagsArray
+        .filter(Boolean)
+        .filter(tag => tag !== '[]' && tag !== '')
+        .map(tag => `<span class="article-tag">${escapeHtml(tag)}</span>`).join('');
+    
+    body.innerHTML = `
+        <div class="article-detail-header">
+            <h1 class="article-detail-title">${escapeHtml(item.title || 'Untitled')}</h1>
+            <div class="article-detail-meta">
+                <span class="article-detail-source">
+                    <i data-lucide="newspaper" style="width: 16px; height: 16px;"></i>
+                    ${escapeHtml(item.source || 'Unknown Source')}
+                </span>
+                <span class="article-detail-date">
+                    <i data-lucide="calendar" style="width: 16px; height: 16px;"></i>
+                    ${date}${timeAgo ? ` (${timeAgo})` : ''}
+                </span>
+            </div>
+        </div>
+        ${imageHtml}
+        <div class="article-detail-description">
+            ${escapeHtml(item.description || item.meta_description || 'No description available.')}
+        </div>
+        ${tagsHtml ? `<div class="article-detail-tags">${tagsHtml}</div>` : ''}
+        <div class="article-detail-actions">
+            ${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" class="article-visit-btn">
+                <i data-lucide="external-link" style="width: 18px; height: 18px;"></i>
+                Read More
+            </a>` : ''}
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function getTimeAgo(date) {
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+    return '';
+}
+
+function navigateArticle(direction) {
+    if (currentArticleList.length === 0) return;
+    
+    let newIndex = currentArticleIndex;
+    if (direction === 'prev' && currentArticleIndex > 0) {
+        newIndex = currentArticleIndex - 1;
+    } else if (direction === 'next' && currentArticleIndex < currentArticleList.length - 1) {
+        newIndex = currentArticleIndex + 1;
+    } else {
+        return;
+    }
+    
+    const newId = currentArticleList[newIndex];
+    const category = '{{ category }}';
+    showArticleDetail(newId, category);
+}
+
+function closeArticleDetailModal() {
+    const modal = document.getElementById('articleDetailModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+    currentArticleDetailId = null;
+    currentArticleList = [];
+    currentArticleIndex = -1;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Close modal on Escape key and arrow navigation
+document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('articleDetailModal');
+    if (!modal || !modal.classList.contains('active')) return;
+    
+    if (e.key === 'Escape') {
+        closeArticleDetailModal();
+    } else if (e.key === 'ArrowLeft') {
+        navigateArticle('prev');
+    } else if (e.key === 'ArrowRight') {
+        navigateArticle('next');
+    }
+});
+</script>
+
+<!-- Article Detail Modal (Feedly-style) -->
+<div id="articleDetailModal" class="article-detail-modal">
+    <div class="modal-content article-detail-content">
+        <button onclick="closeArticleDetailModal()" class="article-modal-close">
+            <i data-lucide="x"></i>
+        </button>
+        <button onclick="navigateArticle('prev')" class="article-nav-btn article-nav-prev" id="articleNavPrev">
+            <i data-lucide="chevron-left"></i>
+        </button>
+        <button onclick="navigateArticle('next')" class="article-nav-btn article-nav-next" id="articleNavNext">
+            <i data-lucide="chevron-right"></i>
+        </button>
+        <div class="article-detail-body" id="articleDetailBody">
+            <div style="text-align: center; padding: 60px;">
+                <i data-lucide="loader" class="spin-icon"></i>
+                <p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Article Detail Modal Styles (Feedly-style) */
+.article-detail-modal {
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.article-detail-modal.active {
+    display: flex !important;
+}
+
+.article-detail-content {
+    max-width: 900px;
+    width: 90%;
+    max-height: 90vh;
+    margin: 5vh auto;
+    position: relative;
+    background: var(--bg-card);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.article-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.article-modal-close:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.article-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+    opacity: 0.7;
+}
+
+.article-nav-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.8);
+    border-color: var(--accent-primary);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.article-nav-prev {
+    left: 20px;
+}
+
+.article-nav-next {
+    right: 20px;
+}
+
+.article-detail-body {
+    padding: 40px;
+    overflow-y: auto;
+    max-height: 90vh;
+}
+
+.article-detail-header {
+    margin-bottom: 24px;
+}
+
+.article-detail-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: 16px;
+}
+
+.article-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.article-detail-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.article-detail-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.article-detail-image {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+}
+
+.article-detail-description {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    white-space: pre-wrap;
+}
+
+.article-detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.article-tag {
+    padding: 6px 12px;
+    background: var(--accent-soft);
+    color: var(--accent-primary);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.article-detail-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.article-visit-btn {
+    padding: 14px 28px;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.article-visit-btn:hover {
+    background: var(--accent-primary-hover, var(--accent-primary));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.spin-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}

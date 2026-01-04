@@ -1,0 +1,1528 @@
+{% extends "base.html" %}
+
+{% block title %}Intelligence Dashboard{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <header class="dashboard-header">
+        <div style="flex: 1;">
+            <h1 class="dashboard-title" style="margin-bottom: 0;">Intelligence Overview</h1>
+        </div>
+        
+        <!-- Control Bar - Redesigned Slim Modern -->
+        <div class="intel-control-bar" style="display: flex; align-items: center; gap: 8px; background: transparent; border: none; padding: 0; box-shadow: none;">
+            <select id="fetchCategory" class="intel-select-modern" style="padding: 4px 10px; font-size: 10px; min-height: 26px; border: 1px solid var(--border-subtle); background: var(--bg-elevated); border-radius: 6px;">
+                <option value="all">All</option>
+                <option value="news">News</option>
+                <option value="cve">CVE</option>
+                <option value="ransomware">Ransomware</option>
+                <option value="cert">CERT</option>
+                <option value="cert-in">CERT-In</option>
+            </select>
+            <select id="fetchTimeRange" class="intel-select-modern" style="padding: 4px 10px; font-size: 10px; min-height: 26px; border: 1px solid var(--border-subtle); background: var(--bg-elevated); border-radius: 6px;">
+                <option value="24">24H</option>
+                <option value="168">7D</option>
+                <option value="720">30D</option>
+                <option value="2160">90D</option>
+            </select>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 8px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-sidebar)'" onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'">
+                <input type="checkbox" id="confirmFetch" style="cursor: pointer; width: 12px; height: 12px; accent-color: var(--accent-primary); margin: 0;">
+                <span style="font-size: 9px; font-weight: var(--fw-medium); color: var(--text-secondary);">Confirm</span>
+            </label>
+            <button onclick="fetchContent(); return false;" class="intel-btn-modern" id="fetchContentBtn" style="padding: 4px 14px; font-size: 10px; min-height: 26px; border-radius: 6px; font-weight: var(--fw-semibold); letter-spacing: 0.03em; background: var(--accent-primary); color: white; border: none; transition: all 0.2s;" onmouseover="this.style.opacity='0.9'; this.style.transform='translateY(-1px)'" onmouseout="this.style.opacity='1'; this.style.transform='translateY(0)'">
+                <i data-lucide="refresh-cw" style="width: 12px; height: 12px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>
+                SYNC
+            </button>
+        </div>
+    </header>
+
+    <!-- News Flash Ticker -->
+    <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); padding: var(--space-xs) var(--space-sm); background: linear-gradient(135deg, var(--bg-elevated), var(--bg-sidebar)); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden; position: relative;">
+        <div style="display: flex; align-items: center; gap: var(--space-xs); flex-shrink: 0; padding-right: var(--space-sm); border-right: 1px solid var(--border-subtle);">
+            <span class="live-dot" style="width: 6px; height: 6px; background: var(--severity-critical); border-radius: 50%; display: inline-block; animation: pulse 2s ease-in-out infinite;"></span>
+            <span style="font-size: 9px; color: var(--accent-primary); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 0.1em;">FLASH</span>
+        </div>
+        <div id="newsTicker" style="flex: 1; overflow: hidden; position: relative; height: 20px; display: flex; align-items: center;">
+            <div id="tickerContent" style="display: flex; align-items: center; gap: var(--space-md); white-space: nowrap;">
+                <!-- Ticker items will be populated by JavaScript -->
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--space-xs); flex-shrink: 0; padding-left: var(--space-sm); border-left: 1px solid var(--border-subtle);">
+            <span id="currentTime" style="font-size: 9px; color: var(--text-secondary); font-weight: var(--fw-medium); font-family: var(--font-mono);"></span>
+            <span style="width: 1px; height: 10px; background: var(--border); margin: 0 4px;"></span>
+            <span style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-normal);">Updated:</span>
+            <span id="lastUpdatedTime" style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-normal); font-family: var(--font-mono);">{{ now_ist().strftime('%b %d • %I:%M:%S %p') }}</span>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);">
+        <a href="/news" class="bento-card" style="text-decoration: none;">
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-accent); flex-shrink: 0;">
+                    <i data-lucide="newspaper" style="width: 18px; height: 18px; color: white;"></i>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">News</div>
+                    <div style="font-size: var(--fs-2xl); font-weight: var(--fw-bold); color: var(--text-primary); line-height: 1; letter-spacing: -0.02em;">{{ stats.category_counts.get('news', 0) }}</div>
+                </div>
+            </div>
+        </a>
+        
+        <a href="/cve" class="bento-card" style="text-decoration: none;">
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3); flex-shrink: 0;">
+                    <i data-lucide="shield-alert" style="width: 18px; height: 18px; color: white;"></i>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">CVEs</div>
+                    <div style="font-size: var(--fs-2xl); font-weight: var(--fw-bold); color: var(--text-primary); line-height: 1; letter-spacing: -0.02em;">{{ stats.category_counts.get('cve', 0) }}</div>
+                </div>
+            </div>
+        </a>
+        
+        <a href="/cve?severities=CRITICAL,HIGH" class="bento-card" style="text-decoration: none;">
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--severity-critical), #dc2626); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3); flex-shrink: 0;">
+                    <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: white;"></i>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">High, Critical CVE</div>
+                    <div style="font-size: var(--fs-2xl); font-weight: var(--fw-bold); color: var(--severity-critical); line-height: 1; letter-spacing: -0.02em;">{{ stats.critical_high }}</div>
+                </div>
+            </div>
+        </a>
+        
+        <a href="/government" class="bento-card" style="text-decoration: none;">
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #f59e0b, #eab308); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3); flex-shrink: 0;">
+                    <i data-lucide="building-2" style="width: 18px; height: 18px; color: white;"></i>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Advisories</div>
+                    <div style="font-size: var(--fs-2xl); font-weight: var(--fw-bold); color: var(--text-primary); line-height: 1; letter-spacing: -0.02em;">{{ stats.category_counts.get('cert', 0) + stats.category_counts.get('cert-in', 0) }}</div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-container" style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-md); margin-bottom: var(--space-xl);">
+        <!-- Activity Chart -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); box-shadow: var(--shadow-sm); position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+                <h3 style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Intelligence Activity</h3>
+                <div class="chart-time-range" data-chart="activity" style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px;">
+                    <button onclick="updateChartRange('activity', 'daily'); return false;" class="chart-range-btn active" data-chart="activity" data-range="daily" style="padding: 3px 8px; font-size: 9px; font-weight: var(--fw-semibold); color: var(--text-secondary); background: var(--accent-primary); color: #FFFFFF; border: none; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s;">Daily</button>
+                    <button onclick="updateChartRange('activity', 'monthly'); return false;" class="chart-range-btn" data-chart="activity" data-range="monthly" style="padding: 3px 8px; font-size: 9px; font-weight: var(--fw-semibold); color: var(--text-secondary); background: transparent; border: none; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s;">Monthly</button>
+                    <button onclick="updateChartRange('activity', 'yearly'); return false;" class="chart-range-btn" data-chart="activity" data-range="yearly" style="padding: 3px 8px; font-size: 9px; font-weight: var(--fw-semibold); color: var(--text-secondary); background: transparent; border: none; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s;">Yearly</button>
+                </div>
+            </div>
+            <canvas id="activityChart" style="max-height: 180px;"></canvas>
+        </div>
+
+        <!-- Severity Breakdown -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-lg); box-shadow: var(--shadow-sm); position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+                <h3 style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Severity Distribution</h3>
+                <div class="chart-time-range" data-chart="severity" style="display: flex; gap: 2px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px;">
+                    <button onclick="updateChartRange('severity', 'daily'); return false;" class="chart-range-btn active" data-chart="severity" data-range="daily" style="padding: 3px 8px; font-size: 9px; font-weight: var(--fw-semibold); color: var(--text-secondary); background: var(--accent-primary); color: #FFFFFF; border: none; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s;">Daily</button>
+                    <button onclick="updateChartRange('severity', 'monthly'); return false;" class="chart-range-btn" data-chart="severity" data-range="monthly" style="padding: 3px 8px; font-size: 9px; font-weight: var(--fw-semibold); color: var(--text-secondary); background: transparent; border: none; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s;">Monthly</button>
+                    <button onclick="updateChartRange('severity', 'yearly'); return false;" class="chart-range-btn" data-chart="severity" data-range="yearly" style="padding: 3px 8px; font-size: 9px; font-weight: var(--fw-semibold); color: var(--text-secondary); background: transparent; border: none; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s;">Yearly</button>
+                </div>
+            </div>
+            <canvas id="severityChart" style="max-height: 180px;"></canvas>
+        </div>
+    </div>
+
+    <!-- Feed Grid -->
+    <div class="feed-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-md);">
+        <!-- News Column -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden;">
+            <div style="padding: var(--space-md); background: var(--bg-sidebar); border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Latest News</h2>
+                <a href="/news" style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--accent-primary); text-decoration: none;">VIEW ALL →</a>
+            </div>
+            <div style="padding: var(--space-md);">
+                {% set news_items = stats.latest_items.get('news', []) %}
+                {% if news_items %}
+                    {% for item in news_items[:6] %}
+                    <div style="padding: var(--space-sm); border-left: 2px solid var(--accent-primary); background: var(--bg-elevated); border-radius: var(--radius-sm); margin-bottom: var(--space-sm); transition: all 0.2s;" onmouseover="this.style.background='var(--bg-sidebar)'" onmouseout="this.style.background='var(--bg-elevated)'">
+                        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                            <span style="font-size: 9px; font-weight: var(--fw-semibold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source|clean_source }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date[:10] if item.published_date else '' }}</span>
+                        </div>
+                        <h3 style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary); cursor: pointer; margin: 0; line-height: 1.4; text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color 0.2s;" onclick="showArticleDetail({{ item.id }}, 'news')" onmouseover="this.style.textDecorationColor='var(--accent-primary)'" onmouseout="this.style.textDecorationColor='transparent'" title="Click to view details">{{ item.title }}</h3>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: var(--text-muted); font-size: var(--fs-sm); padding: var(--space-lg); text-align: center;">No recent news</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- CVE Column -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden;">
+            <div style="padding: var(--space-md); background: var(--bg-sidebar); border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Vulnerabilities</h2>
+                <a href="/cve" style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--accent-primary); text-decoration: none;">VIEW ALL →</a>
+            </div>
+            <div style="padding: var(--space-md);">
+                {% set cve_items = stats.latest_items.get('cve', []) %}
+                {% if cve_items %}
+                    {% for item in cve_items[:6] %}
+                    <div style="padding: var(--space-sm); border-left: 2px solid {% if item.severity == 'CRITICAL' %}var(--severity-critical){% elif item.severity == 'HIGH' %}var(--severity-high){% elif item.severity == 'MEDIUM' %}var(--severity-medium){% else %}var(--severity-low){% endif %}; background: var(--bg-elevated); border-radius: var(--radius-sm); margin-bottom: var(--space-sm); transition: all 0.2s;" onmouseover="this.style.background='var(--bg-sidebar)'" onmouseout="this.style.background='var(--bg-elevated)'">
+                        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px; flex-wrap: wrap;">
+                            {% if item.severity %}
+                            <span class="severity-pill pill-{{ item.severity|lower }}" style="padding: 2px 6px; font-size: 8px;">{{ item.severity }}</span>
+                            {% endif %}
+                            <span style="font-size: 9px; font-weight: var(--fw-semibold); color: var(--accent-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.05em;">{{ item.cve_id or 'CVE' }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date[:10] if item.published_date else '' }}</span>
+                        </div>
+                        <a href="{{ item.source_url or '#' }}" target="_blank" style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary); text-decoration: none; line-height: 1.4; display: block;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title or (item.cve_id or 'CVE') }}</a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: var(--text-muted); font-size: var(--fs-sm); padding: var(--space-lg); text-align: center;">No recent CVEs</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Advisories Column -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden;">
+            <div style="padding: var(--space-md); background: var(--bg-sidebar); border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Advisories</h2>
+                <a href="/government" style="font-size: 10px; font-weight: var(--fw-semibold); color: var(--accent-primary); text-decoration: none;">VIEW ALL →</a>
+            </div>
+            <div style="padding: var(--space-md);">
+                {% set cert_items = stats.latest_items.get('cert', []) or [] %}
+                {% set certin_items = stats.latest_items.get('cert-in', []) or [] %}
+                {% set advisory_items = cert_items + certin_items %}
+                {% if advisory_items %}
+                    {% for item in advisory_items[:6] %}
+                    <div style="padding: var(--space-sm); border-left: 2px solid var(--accent-primary); background: var(--bg-elevated); border-radius: var(--radius-sm); margin-bottom: var(--space-sm); transition: all 0.2s;" onmouseover="this.style.background='var(--bg-sidebar)'" onmouseout="this.style.background='var(--bg-elevated)'">
+                        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                            <span style="font-size: 9px; font-weight: var(--fw-semibold); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.05em;">{{ item.source }}</span>
+                            <span style="width: 2px; height: 2px; background: var(--border); border-radius: 50%;"></span>
+                            <span style="font-size: 9px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date[:10] if item.published_date else '' }}</span>
+                        </div>
+                        <a href="{{ item.source_url or '#' }}" target="_blank" style="font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary); text-decoration: none; line-height: 1.4; display: block;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: var(--text-muted); font-size: var(--fs-sm); padding: var(--space-lg); text-align: center;">No recent advisories</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Toast -->
+<div id="progressContainer" class="progress-toast" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span style="font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-transform: uppercase; color: var(--accent-primary);">Syncing</span>
+        <span id="progressText" style="font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--accent-primary);">0%</span>
+    </div>
+    <div style="background: var(--bg-elevated); height: 4px; border-radius: 2px; overflow: hidden; margin-bottom: 10px;">
+        <div id="progressBar" style="background: var(--accent-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+    </div>
+    <div id="progressStatus" style="font-size: 10px; color: var(--text-secondary); margin-bottom: 8px;"></div>
+    <button onclick="cancelFetch(); return false;" class="intel-btn" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: color: var(--text-secondary); width: 100%; padding: var(--space-sm); font-size: var(--fs-xs);" id="progressCancelBtn">CANCEL</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+    // Only check job status once, don't start polling unless job is running
+    fetch('/api/job/status').then(r => r.json()).then(data => {
+        if (data.running) {
+            checkJobStatus();
+            startPolling();
+        }
+    });
+    initCharts();
+    updateCurrentTime();
+    updateLastUpdatedTime();
+    initNewsTicker();
+    // Update time every second
+    setInterval(updateCurrentTime, 1000);
+});
+
+function fetchContent() {
+    const confirmFetch = document.getElementById('confirmFetch');
+    if (!confirmFetch?.checked) {
+        showNotification('Please check "Confirm" to proceed', 'warning');
+        return;
+    }
+    const category = document.getElementById('fetchCategory').value;
+    const hours = document.getElementById('fetchTimeRange').value;
+    
+    if (category === 'all') {
+        // Fetch all categories with time range
+        const url = `/api/fetch?hours=${hours}`;
+        triggerFetch(url, null);
+    } else {
+        // Fetch specific category - use dedicated endpoint with hours parameter
+        const url = `/api/fetch/${category}?hours=${hours}`;
+        triggerFetch(url, null);
+    }
+}
+
+function triggerFetch(url, body) {
+    const options = { method: 'POST' };
+    if (body) {
+        options.headers = { 'Content-Type': 'application/json' };
+        options.body = body;
+    }
+    document.getElementById('progressContainer').style.display = 'block';
+    fetch(url, options).then(r => r.json()).then(data => {
+        if (data.success !== false) {
+            showNotification('Sync started', 'info');
+            startPolling();
+        } else {
+            showNotification('Error: ' + (data.error || 'Unknown error'), 'error');
+            document.getElementById('progressContainer').style.display = 'none';
+        }
+    }).catch(e => {
+        showNotification('Error: ' + e.message, 'error');
+        document.getElementById('progressContainer').style.display = 'none';
+    });
+}
+
+function startPolling() {
+    if (window.fetchJobPollInterval) clearInterval(window.fetchJobPollInterval);
+    window.fetchJobPollInterval = setInterval(checkJobStatus, 2000);
+}
+
+function checkJobStatus() {
+    fetch('/api/job/status').then(r => r.json()).then(data => {
+        const container = document.getElementById('progressContainer');
+        if (data.running) {
+            container.style.display = 'block';
+            document.getElementById('progressBar').style.width = (data.progress || 0) + '%';
+            document.getElementById('progressText').textContent = (data.progress || 0) + '%';
+            document.getElementById('progressStatus').textContent = data.message || 'Processing...';
+            if (!window.fetchJobPollInterval) startPolling();
+        } else {
+            if (data.status === 'completed') {
+                showNotification('Sync complete - Refreshing dashboard...', 'success');
+                container.style.display = 'none';
+                // Force hard reload to bypass cache
+                setTimeout(() => {
+                    window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
+                }, 1000);
+            }
+            if (window.fetchJobPollInterval) {
+                clearInterval(window.fetchJobPollInterval);
+                window.fetchJobPollInterval = null;
+            }
+        }
+    });
+}
+
+function cancelFetch() {
+    fetch('/api/job/cancel', { method: 'POST' }).then(() => {
+        showNotification('Cancelled', 'info');
+        document.getElementById('progressContainer').style.display = 'none';
+    });
+}
+
+function updateChartRange(chartType, range) {
+    console.log('updateChartRange called:', chartType, range);
+    
+    // Update active button for this specific chart
+    const container = document.querySelector(`.chart-time-range[data-chart="${chartType}"]`);
+    if (container) {
+        const buttons = container.querySelectorAll(`.chart-range-btn[data-chart="${chartType}"]`);
+        buttons.forEach(btn => {
+            if (btn.dataset.range === range) {
+                btn.classList.add('active');
+                btn.style.background = 'var(--accent-primary)';
+                btn.style.color = '#FFFFFF';
+            } else {
+                btn.classList.remove('active');
+                btn.style.background = 'transparent';
+                btn.style.color = 'var(--text-secondary)';
+            }
+        });
+    }
+    
+    // Calculate hours based on range
+    let hours = 24;
+    if (range === 'monthly') hours = 720; // 30 days
+    else if (range === 'yearly') hours = 8760; // 365 days
+    
+    console.log('Calculated hours:', hours, 'for range:', range);
+    
+    // Show loading state
+    if (window.chartInstances && window.chartInstances[chartType]) {
+        if (chartType === 'activity' && window.chartInstances.activity) {
+            window.chartInstances.activity.data.datasets[0].borderColor = 'rgba(128, 128, 128, 0.5)';
+            window.chartInstances.activity.update('none');
+        }
+    }
+    
+    // Fetch new chart data from API
+    if (chartType === 'activity') {
+        // Show loading state
+        if (window.chartInstances.activity) {
+            window.chartInstances.activity.data.datasets[0].borderColor = 'rgba(128, 128, 128, 0.5)';
+            window.chartInstances.activity.update('none');
+        }
+        
+        console.log('Fetching activity chart data for hours:', hours);
+        const timestamp = Date.now();
+        fetch(`/api/timeseries?hours=${hours}&category=all&_t=${timestamp}`)
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error(`HTTP error! status: ${r.status}`);
+                }
+                return r.json();
+            })
+            .then(timeSeriesData => {
+                console.log('Received time series data:', timeSeriesData);
+                console.log('  - Labels:', timeSeriesData?.labels?.length || 0);
+                console.log('  - Datasets:', timeSeriesData?.datasets?.length || 0);
+                
+                if (timeSeriesData?.datasets) {
+                    console.log('  - Dataset details:');
+                    timeSeriesData.datasets.forEach(ds => {
+                        const total = ds.data ? ds.data.reduce((a, b) => a + b, 0) : 0;
+                        console.log(`    * ${ds.label}: ${total} items`);
+                    });
+                }
+                
+                if (timeSeriesData && timeSeriesData.labels && timeSeriesData.datasets && timeSeriesData.datasets.length > 0) {
+                    console.log('Processing', timeSeriesData.labels.length, 'labels');
+                    // Format labels based on time range
+                    let formattedLabels = timeSeriesData.labels.map((label, idx) => {
+                        if (!label) return `Item ${idx + 1}`;
+                        
+                        try {
+                            // Handle different time bucket formats from API
+                            let date;
+                            if (hours <= 24) {
+                                // Format: "2025-12-19 12:00:00" or "2025-12-19 12:00:00.000"
+                                date = new Date(label.replace(/\.\d+$/, ''));
+                            } else if (hours <= 168) {
+                                // Format: "2025-12-19"
+                                date = new Date(label + 'T00:00:00');
+                        } else if (hours <= 8760) {
+                            // Format: "2025-52" (year-week) - MySQL DATE_FORMAT '%Y-%u' (week of year, 1-53)
+                            const parts = label.split('-');
+                            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                const year = parseInt(parts[0]);
+                                const week = parseInt(parts[1]);
+                                // Calculate date from week number (MySQL week starts from first day of year)
+                                // Get January 1st of the year
+                                const jan1 = new Date(year, 0, 1);
+                                // Get day of week (0=Sunday, 1=Monday, etc.)
+                                const dayOfWeek = jan1.getDay();
+                                // Calculate days to add to get to the start of week 1
+                                // MySQL week starts from first day of year, so we need to find the first day
+                                const daysToWeekStart = (7 - dayOfWeek) % 7;
+                                const week1Start = new Date(jan1.getTime() + daysToWeekStart * 24 * 60 * 60 * 1000);
+                                // Add weeks
+                                const daysOffset = (week - 1) * 7;
+                                date = new Date(week1Start.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+                            } else {
+                                // Try parsing as regular date
+                                date = new Date(label);
+                            }
+                        } else {
+                                // Format: "2025-12" (year-month)
+                                date = new Date(label + '-01');
+                            }
+                            
+                            if (isNaN(date.getTime())) {
+                                // Fallback: return original label
+                                return label;
+                            }
+                            
+                            if (hours <= 24) {
+                                // Hourly: "6h ago", "5h ago", etc.
+                                const now = new Date();
+                                const diffMs = now - date;
+                                const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                if (diffHours <= 0) return 'Now';
+                                if (diffHours > 24) return 'Now'; // Safety check
+                                return `${diffHours}h ago`;
+                            } else if (hours <= 168) {
+                                // Daily: "Dec 19", "Dec 18", etc.
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            } else if (hours <= 8760) {
+                                // Monthly/Weekly: Show date
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            } else {
+                                // Yearly: "Dec 2025", "Nov 2025", etc.
+                                return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                            }
+                        } catch (e) {
+                            console.warn('Error formatting label:', label, e);
+                            return label || `Item ${idx + 1}`;
+                        }
+                    });
+                    
+                    // Sum all category datasets for total activity
+                    const totalData = new Array(timeSeriesData.labels.length).fill(0);
+                    timeSeriesData.datasets.forEach(dataset => {
+                        if (dataset.data) {
+                            dataset.data.forEach((val, idx) => {
+                                totalData[idx] = (totalData[idx] || 0) + (val || 0);
+                            });
+                        }
+                    });
+                    
+                    console.log('Total data points:', totalData);
+                    console.log('Sum of all data:', totalData.reduce((a, b) => a + b, 0));
+                    
+                    // Destroy old chart before creating new one
+                    if (window.chartInstances.activity) {
+                        window.chartInstances.activity.destroy();
+                    }
+                    
+                    // Recreate chart with new data - match original config exactly
+                    console.log('Updating activity chart with', formattedLabels.length, 'labels and', totalData.length, 'data points');
+                    const activityCtx = document.getElementById('activityChart');
+                    if (!activityCtx) {
+                        console.error('Activity chart canvas not found');
+                        return;
+                    }
+                    window.chartInstances.activity = new Chart(activityCtx.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: formattedLabels,
+                            datasets: [{
+                                label: 'Intelligence Items',
+                                data: totalData,
+                                borderColor: 'rgb(20, 184, 166)',
+                                backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    enabled: true,
+                                    mode: 'index',
+                                    intersect: false,
+                                    backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                    padding: 12,
+                                    titleColor: '#f9fafb',
+                                    bodyColor: '#d1d5db',
+                                    borderColor: '#374151',
+                                    borderWidth: 1,
+                                    titleFont: { size: 12, weight: 'bold' },
+                                    bodyFont: { size: 11 },
+                                    displayColors: true,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.dataset.label || 'Value'}: ${context.parsed.y}`;
+                                        }
+                                    }
+                                }
+                            },
+                            interaction: {
+                                mode: 'index',
+                                intersect: false
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(55, 65, 81, 0.3)' },
+                                    ticks: { color: '#9ca3af' }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { 
+                                        color: '#9ca3af',
+                                        maxRotation: hours > 168 ? 45 : 0
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    console.log('Activity chart recreated and updated');
+                } else {
+                    console.warn('No valid time series data received for activity chart', timeSeriesData);
+                    if (window.chartInstances.activity) {
+                        window.chartInstances.activity.data.datasets[0].borderColor = 'rgb(20, 184, 166)';
+                        window.chartInstances.activity.update();
+                    }
+                }
+            })
+            .catch(e => {
+                console.error('Error updating activity chart:', e);
+                // Create chart with empty data on error
+                const activityCtx = document.getElementById('activityChart');
+                if (activityCtx) {
+                    if (window.chartInstances.activity) {
+                        window.chartInstances.activity.destroy();
+                    }
+                    window.chartInstances.activity = new Chart(activityCtx.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: ['Error'],
+                            datasets: [{
+                                label: 'Intelligence Items',
+                                data: [0],
+                                borderColor: 'rgb(20, 184, 166)',
+                                backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                    padding: 12,
+                                    titleColor: '#f9fafb',
+                                    bodyColor: '#d1d5db',
+                                    borderColor: '#374151',
+                                    borderWidth: 1
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(55, 65, 81, 0.3)' },
+                                    ticks: { color: '#9ca3af' }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { color: '#9ca3af' }
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+    } else if (chartType === 'severity') {
+        const severityCtx = document.getElementById('severityChart');
+        if (!severityCtx) return;
+        
+        // Destroy existing chart
+        if (window.chartInstances.severity) {
+            window.chartInstances.severity.destroy();
+        }
+        
+        // Simple fetch and create with cache busting
+        const timestamp = Date.now();
+        fetch(`/api/severity-breakdown?hours=${hours}&_t=${timestamp}`)
+            .then(r => r.json())
+            .then(data => {
+                const counts = data && data.counts ? data.counts : { critical: 0, high: 0, medium: 0, low: 0 };
+                window.chartInstances.severity = new Chart(severityCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            data: [counts.critical || 0, counts.high || 0, counts.medium || 0, counts.low || 0],
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(234, 179, 8, 0.8)',
+                                'rgba(6, 182, 212, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgb(239, 68, 68)',
+                                'rgb(245, 158, 11)',
+                                'rgb(234, 179, 8)',
+                                'rgb(6, 182, 212)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#d1d5db',
+                                    padding: 15,
+                                    font: { size: 12, weight: 600 }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                padding: 12,
+                                titleColor: '#f9fafb',
+                                bodyColor: '#d1d5db',
+                                borderColor: '#374151',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+            })
+            .catch(e => {
+                console.error('Error updating severity chart:', e);
+                // Create with zeros on error
+                window.chartInstances.severity = new Chart(severityCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            data: [0, 0, 0, 0],
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(234, 179, 8, 0.8)',
+                                'rgba(6, 182, 212, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgb(239, 68, 68)',
+                                'rgb(245, 158, 11)',
+                                'rgb(234, 179, 8)',
+                                'rgb(6, 182, 212)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#d1d5db',
+                                    padding: 15,
+                                    font: { size: 12, weight: 600 }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                padding: 12,
+                                titleColor: '#f9fafb',
+                                bodyColor: '#d1d5db',
+                                borderColor: '#374151',
+                                borderWidth: 1
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+            });
+    }
+}
+
+function updateCurrentTime() {
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        const now = new Date();
+        const options = { 
+            month: 'short', 
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Kolkata'
+        };
+        const istTime = now.toLocaleString('en-US', options);
+        timeElement.textContent = istTime;
+    }
+}
+
+function updateLastUpdatedTime() {
+    // Update last updated time display (this is set on page load from server)
+    const timeElement = document.getElementById('lastUpdatedTime');
+    if (timeElement) {
+        // Keep the server-rendered time as last updated - it updates on page refresh
+        // Format is already set by server template
+    }
+}
+
+function initNewsTicker() {
+    const tickerContent = document.getElementById('tickerContent');
+    if (!tickerContent) {
+        console.error('Ticker content element not found');
+        return;
+    }
+    
+    // Fetch latest items from API for real-time updates
+    fetch('/api/stats')
+        .then(r => r.json())
+        .then(stats => {
+            const latestNews = (stats.latest_items && stats.latest_items.news) ? stats.latest_items.news.slice(0, 5) : [];
+            const latestCVEs = (stats.latest_items && stats.latest_items.cve) ? stats.latest_items.cve.slice(0, 5) : [];
+            const certItems = (stats.latest_items && stats.latest_items.cert) ? stats.latest_items.cert.slice(0, 3) : [];
+            const certInItems = (stats.latest_items && stats.latest_items['cert-in']) ? stats.latest_items['cert-in'].slice(0, 3) : [];
+            const latestAdvisories = [...certItems, ...certInItems];
+            
+            const tickerItems = [];
+            
+            // Add news items
+            latestNews.forEach(item => {
+                if (item && item.title) {
+                    const title = item.title.length > 75 ? item.title.substring(0, 75) + '...' : item.title;
+                    tickerItems.push({
+                        text: `[NEWS] ${title}`,
+                        type: 'news',
+                        category: 'news',
+                        id: item.id,
+                        url: item.source_url || '#'
+                    });
+                }
+            });
+            
+            // Add critical/high CVEs
+            latestCVEs.filter(cve => cve && (cve.severity === 'CRITICAL' || cve.severity === 'HIGH' || cve.severity === 'Critical' || cve.severity === 'High')).forEach(item => {
+                if (item && item.cve_id) {
+                    const title = item.title ? (item.title.length > 55 ? item.title.substring(0, 55) + '...' : item.title) : 'Critical vulnerability detected';
+                    tickerItems.push({
+                        text: `[CVE] ${item.cve_id}: ${title}`,
+                        type: 'cve',
+                        category: 'cve',
+                        id: item.id,
+                        url: item.source_url || '#'
+                    });
+                }
+            });
+            
+            // Add advisories
+            latestAdvisories.forEach(item => {
+                if (item && item.title) {
+                    const title = item.title.length > 65 ? item.title.substring(0, 65) + '...' : item.title;
+                    const category = item.source === 'CERT-In' ? 'cert-in' : 'cert';
+                    tickerItems.push({
+                        text: `[ADVISORY] ${title}`,
+                        type: 'advisory',
+                        category: category,
+                        id: item.id,
+                        url: item.source_url || '#'
+                    });
+                }
+            });
+            
+            if (tickerItems.length === 0) {
+                tickerContent.innerHTML = '<span style="color: var(--text-muted); font-size: 9px;">No recent updates</span>';
+                return;
+            }
+            
+            // Create ticker elements
+            const tickerHTML = tickerItems.map((item, index) => {
+                const color = item.type === 'cve' ? 'var(--severity-critical)' : 
+                             item.type === 'advisory' ? 'var(--accent-primary)' : 'var(--accent-primary)';
+                return `
+                    <a href="javascript:void(0)" onclick="openTickerItemDetail(${index})" style="text-decoration: none; color: var(--text-primary); font-size: 9px; font-weight: var(--fw-medium); display: inline-flex; align-items: center; gap: 6px; padding-right: 20px; cursor: pointer;" onmouseover="this.style.color='${color}'" onmouseout="this.style.color='var(--text-primary)'">
+                        <span style="width: 4px; height: 4px; background: ${color}; border-radius: 50%; flex-shrink: 0;"></span>
+                        <span>${item.text}</span>
+                    </a>
+                `;
+            }).join('<span style="margin: 0 20px; color: var(--border); font-size: 8px;">•</span>');
+            
+            // Store ticker items globally for modal access
+            window.tickerItems = tickerItems;
+            window.tickerItemsData = {
+                news: latestNews,
+                cves: latestCVEs,
+                advisories: latestAdvisories
+            };
+            
+            // Duplicate content for seamless loop
+            tickerContent.innerHTML = tickerHTML + '<span style="margin: 0 20px; color: var(--border); font-size: 8px;">•</span>' + tickerHTML;
+            
+            // Add animation if not already added
+            if (!document.getElementById('tickerStyles')) {
+                const style = document.createElement('style');
+                style.id = 'tickerStyles';
+                style.textContent = `
+                    @keyframes ticker {
+                        0% { transform: translateX(0); }
+                        100% { transform: translateX(-50%); }
+                    }
+                    #tickerContent {
+                        animation: ticker 90s linear infinite;
+                    }
+                    #tickerContent:hover {
+                        animation-play-state: paused;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        })
+        .catch(e => {
+            console.error('Error loading ticker data:', e);
+            tickerContent.innerHTML = '<span style="color: var(--text-muted); font-size: 9px;">Loading updates...</span>';
+        });
+}
+
+function openTickerItemDetail(index) {
+    if (!window.tickerItems || !window.tickerItems[index]) {
+        console.error('Ticker item not found:', index);
+        return;
+    }
+    
+    const item = window.tickerItems[index];
+    
+    // If item has an ID and category, open the detail modal
+    if (item.id && item.category) {
+        showArticleDetail(item.id, item.category);
+    } else if (item.url && item.url !== '#') {
+        // Otherwise, open the URL in a new tab
+        window.open(item.url, '_blank');
+    } else {
+        console.warn('No valid action for ticker item:', item);
+    }
+}
+
+// Store chart instances for later updates
+window.chartInstances = {};
+
+function initCharts() {
+    // Fetch initial chart data with cache busting
+    const timestamp = Date.now();
+    fetch(`/api/timeseries?hours=24&category=all&_t=${timestamp}`)
+        .then(r => r.json())
+        .then(data => {
+            console.log('Initial chart data received:', data);
+            console.log('  - Labels:', data?.labels?.length || 0);
+            console.log('  - Datasets:', data?.datasets?.length || 0);
+            
+            if (data?.datasets) {
+                console.log('  - Dataset details:');
+                data.datasets.forEach(ds => {
+                    const total = ds.data ? ds.data.reduce((a, b) => a + b, 0) : 0;
+                    console.log(`    * ${ds.label}: ${total} items`);
+                });
+            }
+            
+            // Start with empty data
+            let labels = [];
+            let chartData = [];
+            
+            if (data && data.labels && data.datasets && data.datasets.length > 0) {
+                // Format labels for initial display (24 hours = hourly)
+                labels = data.labels.map(label => {
+                    if (!label) return '';
+                    const date = new Date(label);
+                    if (isNaN(date.getTime())) return label;
+                    const now = new Date();
+                    const diffHours = Math.floor((now - date) / (1000 * 60 * 60));
+                    if (diffHours === 0) return 'Now';
+                    return `${diffHours}h ago`;
+                });
+                
+                // Sum all category datasets for total activity
+                const totalData = new Array(labels.length).fill(0);
+                data.datasets.forEach(dataset => {
+                    if (dataset.data) {
+                        dataset.data.forEach((val, idx) => {
+                            totalData[idx] = (totalData[idx] || 0) + (val || 0);
+                        });
+                    }
+                });
+                chartData = totalData;
+                
+                console.log('Initial chart data points:', chartData);
+                console.log('Sum of all initial data:', chartData.reduce((a, b) => a + b, 0));
+            } else {
+                console.warn('No valid data received for initial chart load');
+            }
+            
+            // Activity Chart
+            const activityCtx = document.getElementById('activityChart').getContext('2d');
+            window.chartInstances.activity = new Chart(activityCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Intelligence Items',
+                        data: chartData,
+                        borderColor: 'rgb(20, 184, 166)',
+                        backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 3,
+                        pointRadius: 0,
+                        pointHoverRadius: 6
+                    }]
+                },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                    padding: 12,
+                    titleColor: '#f9fafb',
+                    bodyColor: '#d1d5db',
+                    borderColor: '#374151',
+                    borderWidth: 1,
+                    titleFont: { size: 12, weight: 'bold' },
+                    bodyFont: { size: 11 },
+                    displayColors: true,
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label || '';
+                        },
+                        label: function(context) {
+                            return `${context.dataset.label || 'Value'}: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(55, 65, 81, 0.3)' },
+                    ticks: { color: '#9ca3af' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9ca3af' }
+                }
+            }
+        }
+    });
+        })
+        .catch(e => {
+            console.error('Error loading chart data:', e);
+            // Create empty chart on error
+            const activityCtx = document.getElementById('activityChart').getContext('2d');
+            window.chartInstances.activity = new Chart(activityCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Intelligence Items',
+                        data: [],
+                        borderColor: 'rgb(20, 184, 166)',
+                        backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 3,
+                        pointRadius: 0,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                            padding: 12,
+                            titleColor: '#f9fafb',
+                            bodyColor: '#d1d5db',
+                            borderColor: '#374151',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(55, 65, 81, 0.3)' },
+                            ticks: { color: '#9ca3af' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#9ca3af' }
+                        }
+                    }
+                }
+            });
+        });
+
+    // Severity Chart - Simplified approach
+    const severityCtx = document.getElementById('severityChart');
+    if (severityCtx) {
+        // Simple fetch and create with cache busting
+        const timestamp = Date.now();
+        fetch(`/api/severity-breakdown?hours=24&_t=${timestamp}`)
+            .then(r => r.json())
+            .then(data => {
+                const counts = data && data.counts ? data.counts : { critical: 0, high: 0, medium: 0, low: 0 };
+                window.chartInstances.severity = new Chart(severityCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            data: [counts.critical || 0, counts.high || 0, counts.medium || 0, counts.low || 0],
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(234, 179, 8, 0.8)',
+                                'rgba(6, 182, 212, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgb(239, 68, 68)',
+                                'rgb(245, 158, 11)',
+                                'rgb(234, 179, 8)',
+                                'rgb(6, 182, 212)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#d1d5db',
+                                    padding: 15,
+                                    font: { size: 12, weight: 600 }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                padding: 12,
+                                titleColor: '#f9fafb',
+                                bodyColor: '#d1d5db',
+                                borderColor: '#374151',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+            })
+            .catch(e => {
+                console.error('Error loading severity chart:', e);
+                // Create with zeros on error
+                window.chartInstances.severity = new Chart(severityCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            data: [0, 0, 0, 0],
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(234, 179, 8, 0.8)',
+                                'rgba(6, 182, 212, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgb(239, 68, 68)',
+                                'rgb(245, 158, 11)',
+                                'rgb(234, 179, 8)',
+                                'rgb(6, 182, 212)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#d1d5db',
+                                    padding: 15,
+                                    font: { size: 12, weight: 600 }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                padding: 12,
+                                titleColor: '#f9fafb',
+                                bodyColor: '#d1d5db',
+                                borderColor: '#374151',
+                                borderWidth: 1
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+            });
+    }
+}
+</script>
+
+<!-- Article Detail Modal (Feedly-style) -->
+<div id="articleDetailModal" class="article-detail-modal">
+    <div class="modal-content article-detail-content">
+        <button onclick="closeArticleDetailModal()" class="article-modal-close">
+            <i data-lucide="x"></i>
+        </button>
+        <div class="article-detail-body" id="articleDetailBody">
+            <div style="text-align: center; padding: 60px;">
+                <i data-lucide="loader" class="spin-icon"></i>
+                <p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Article Detail Modal Styles */
+.article-detail-modal {
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.article-detail-modal.active {
+    display: flex !important;
+}
+
+.article-detail-content {
+    max-width: 900px;
+    width: 90%;
+    max-height: 90vh;
+    margin: 5vh auto;
+    position: relative;
+    background: var(--bg-card);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.article-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.article-modal-close:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.article-detail-body {
+    padding: 40px;
+    overflow-y: auto;
+    max-height: 90vh;
+}
+
+.article-detail-header {
+    margin-bottom: 24px;
+}
+
+.article-detail-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: 16px;
+}
+
+.article-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.article-detail-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.article-detail-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.article-detail-image {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+}
+
+.article-detail-description {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    white-space: pre-wrap;
+}
+
+.article-detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.article-tag {
+    padding: 6px 12px;
+    background: var(--accent-soft);
+    color: var(--accent-primary);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.article-detail-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.article-visit-btn {
+    padding: 14px 28px;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.article-visit-btn:hover {
+    background: var(--accent-primary-hover, var(--accent-primary));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.spin-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+// Article Detail Modal Functions
+function showArticleDetail(articleId, category) {
+    console.log('showArticleDetail called with:', articleId, category);
+    const modal = document.getElementById('articleDetailModal');
+    const body = document.getElementById('articleDetailBody');
+    
+    if (!modal || !body) {
+        console.error('Modal elements not found');
+        return;
+    }
+    
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.classList.add('active');
+    
+    body.innerHTML = '<div style="text-align: center; padding: 60px;"><i data-lucide="loader" class="spin-icon"></i><p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p></div>';
+    lucide.createIcons();
+    
+    // Fetch article details
+    const isNews = category === 'news';
+    const endpoint = isNews ? `/api/article/${articleId}/detail` : `/api/intelligence?id=${articleId}`;
+    fetch(endpoint)
+        .then(r => {
+            if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+            return r.json();
+        })
+        .then(d => {
+            if (d.success && d.item) {
+                renderArticleDetail(d.item, isNews);
+            } else {
+                body.innerHTML = `<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article: ${d.error || 'Unknown error'}</p></div>`;
+            }
+            lucide.createIcons();
+        })
+        .catch(err => {
+            console.error('Fetch error:', err);
+            body.innerHTML = `<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article: ${err.message}</p></div>`;
+            lucide.createIcons();
+        });
+}
+
+function renderArticleDetail(item, isNews) {
+    const body = document.getElementById('articleDetailBody');
+    const date = item.published_date ? new Date(item.published_date).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    }) : 'N/A';
+    const timeAgo = item.published_date ? getTimeAgo(new Date(item.published_date)) : '';
+    
+    const imageHtml = item.image_url ? `
+        <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title || '')}" class="article-detail-image" onerror="this.style.display='none'">
+    ` : '';
+    
+    // Parse tags
+    let tagsArray = [];
+    if (item.tags) {
+        if (typeof item.tags === 'string') {
+            try {
+                const parsed = JSON.parse(item.tags);
+                if (Array.isArray(parsed)) {
+                    tagsArray = parsed;
+                } else {
+                    tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
+                }
+            } catch (e) {
+                tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
+            }
+        } else if (Array.isArray(item.tags)) {
+            tagsArray = item.tags;
+        }
+    }
+    
+    const tagsHtml = tagsArray
+        .filter(Boolean)
+        .filter(tag => tag !== '[]' && tag !== '')
+        .map(tag => `<span class="article-tag">${escapeHtml(tag)}</span>`).join('');
+    
+    body.innerHTML = `
+        <div class="article-detail-header">
+            <h1 class="article-detail-title">${escapeHtml(item.title || 'Untitled')}</h1>
+            <div class="article-detail-meta">
+                <span class="article-detail-source">
+                    <i data-lucide="newspaper" style="width: 16px; height: 16px;"></i>
+                    ${escapeHtml(item.source || 'Unknown Source')}
+                </span>
+                <span class="article-detail-date">
+                    <i data-lucide="calendar" style="width: 16px; height: 16px;"></i>
+                    ${date}${timeAgo ? ` (${timeAgo})` : ''}
+                </span>
+            </div>
+        </div>
+        ${imageHtml}
+        <div class="article-detail-description">
+            ${escapeHtml(item.description || item.meta_description || 'No description available.')}
+        </div>
+        ${tagsHtml ? `<div class="article-detail-tags">${tagsHtml}</div>` : ''}
+        <div class="article-detail-actions">
+            ${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" class="article-visit-btn">
+                <i data-lucide="external-link" style="width: 18px; height: 18px;"></i>
+                Read Full Article
+            </a>` : ''}
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function getTimeAgo(date) {
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+    return '';
+}
+
+function closeArticleDetailModal() {
+    const modal = document.getElementById('articleDetailModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('articleDetailModal');
+    if (modal && modal.classList.contains('active') && e.key === 'Escape') {
+        closeArticleDetailModal();
+    }
+});
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('articleDetailModal');
+    if (modal && modal.classList.contains('active') && e.target === modal) {
+        closeArticleDetailModal();
+    }
+});
+</script>
+
+{% endblock %}

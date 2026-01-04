@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}CVE Search - Cybersecurity Feed{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="container">
+        <div class="dashboard-header">
+            <h1 class="dashboard-title">CVE Search</h1>
+            <p class="dashboard-subtitle">Advanced CVE search and filtering</p>
+        </div>
+
+        <div class="severity-filters">
+            <a href="/cve-search" class="severity-btn all-severity {% if not severity %}active{% endif %}">All CVEs</a>
+            <a href="/cve-search?severity=CRITICAL" class="severity-btn severity-critical {% if severity == 'CRITICAL' %}active{% endif %}">CRITICAL</a>
+            <a href="/cve-search?severity=HIGH" class="severity-btn severity-high {% if severity == 'HIGH' %}active{% endif %}">HIGH</a>
+            <a href="/cve-search?severity=MEDIUM" class="severity-btn severity-medium {% if severity == 'MEDIUM' %}active{% endif %}">MEDIUM</a>
+            <a href="/cve-search?severity=LOW" class="severity-btn severity-low {% if severity == 'LOW' %}active{% endif %}">LOW</a>
+        </div>
+
+        <form method="GET" action="/cve-search" class="search-bar">
+            {% if severity %}
+            <input type="hidden" name="severity" value="{{ severity }}">
+            {% endif %}
+            <input 
+                type="text" 
+                name="search" 
+                class="search-input" 
+                placeholder="Search CVEs by ID, title, or description..." 
+                value="{{ search }}"
+            >
+            <div class="filters">
+                <select name="sort" class="filter-select">
+                    <option value="published_date" {% if sort_by == 'published_date' %}selected{% endif %}>Sort by Date</option>
+                    <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Sort by Title</option>
+                    <option value="severity" {% if sort_by == 'severity' %}selected{% endif %}>Sort by Severity</option>
+                    <option value="created_at" {% if sort_by == 'created_at' %}selected{% endif %}>Sort by Added</option>
+                </select>
+                <select name="order" class="filter-select">
+                    <option value="DESC" {% if sort_order == 'DESC' %}selected{% endif %}>Descending</option>
+                    <option value="ASC" {% if sort_order == 'ASC' %}selected{% endif %}>Ascending</option>
+                </select>
+                <select name="year" class="filter-select">
+                    <option value="">All Years</option>
+                    {% for y in range(2025, 2019, -1) %}
+                    <option value="{{ y }}" {% if year == y|string %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <select name="month" class="filter-select">
+                    <option value="">All Months</option>
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if month == m|string %}selected{% endif %}>{% if m < 10 %}0{{ m }}{% else %}{{ m }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <input 
+                    type="date" 
+                    name="date_from" 
+                    class="filter-select date-input" 
+                    placeholder="From Date (YYYY-MM-DD)"
+                    value="{{ date_from }}"
+                    pattern="\d{4}-\d{2}-\d{2}"
+                    title="Date format: YYYY-MM-DD"
+                >
+                <input 
+                    type="date" 
+                    name="date_to" 
+                    class="filter-select date-input" 
+                    placeholder="To Date (YYYY-MM-DD)"
+                    value="{{ date_to }}"
+                    pattern="\d{4}-\d{2}-\d{2}"
+                    title="Date format: YYYY-MM-DD"
+                >
+            </div>
+            <button type="submit" class="search-button">Search</button>
+        </form>
+
+        {% if items %}
+        <div class="items-list">
+            {% for item in items %}
+            <div class="item-card">
+                <div class="item-header">
+                    <a href="{{ item.source_url or '#' }}" target="_blank" class="item-title">{{ item.title }}</a>
+                    <div class="item-meta">
+                        {% if item.severity and item.severity.strip() %}
+                        <span class="severity-badge severity-{{ item.severity|lower }}">{{ item.severity }}</span>
+                        {% endif %}
+                        {% if item.cve_id %}
+                        <span class="severity-badge cve-badge">{{ item.cve_id }}</span>
+                        {% endif %}
+                        <span class="item-date">{{ item.published_date|format_date }}</span>
+                    </div>
+                </div>
+                {% if item.description %}
+                <div class="item-description">{{ item.description }}</div>
+                {% endif %}
+                <div class="item-footer">
+                    <div class="item-tags">
+                        {% for tag in item.tags %}
+                        <span class="tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="item-source">{{ item.source }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="?page={{ page - 1 }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}{% if sort_order %}&order={{ sort_order }}{% endif %}{% if year %}&year={{ year }}{% endif %}{% if month %}&month={{ month }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">← Prev</a>
+            {% else %}
+            <span class="disabled">← Prev</span>
+            {% endif %}
+            
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="current">{{ p }}</span>
+                {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                <a href="?page={{ p }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}{% if sort_order %}&order={{ sort_order }}{% endif %}{% if year %}&year={{ year }}{% endif %}{% if month %}&month={{ month }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">{{ p }}</a>
+                {% elif p == page - 3 or p == page + 3 %}
+                <span>...</span>
+                {% endif %}
+            {% endfor %}
+            
+            {% if page < total_pages %}
+            <a href="?page={{ page + 1 }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}{% if sort_order %}&order={{ sort_order }}{% endif %}{% if year %}&year={{ year }}{% endif %}{% if month %}&month={{ month }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Next →</a>
+            {% else %}
+            <span class="disabled">Next →</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div style="text-align: center; margin-top: 24px; color: var(--text-muted); font-size: 12px;">
+            Showing {{ items|length }} of {{ total }} CVEs
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-title">No CVEs found</div>
+            <div class="empty-state-text">
+                {% if search or severity %}
+                No results match your search criteria.
+                {% else %}
+                No CVEs available yet.
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+

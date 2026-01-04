@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Settings Login - Security Intelligence{% endblock %}
+
+{% block content %}
+<div class="main-content-wrapper">
+    <div style="display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 120px); padding: var(--space-2xl) var(--space-lg);">
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl); max-width: 420px; width: 100%; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;">
+            <!-- Decorative gradient background -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));"></div>
+            
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: var(--space-2xl);">
+                <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-md); box-shadow: var(--shadow-accent);">
+                    <i data-lucide="lock" style="width: 32px; height: 32px; color: white;"></i>
+                </div>
+                <h1 style="font-size: var(--fs-2xl); font-weight: var(--fw-bold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; letter-spacing: -0.02em;">Settings Access</h1>
+                <p style="font-size: var(--fs-sm); color: var(--text-muted); margin: 0; font-weight: var(--fw-medium);">Password required to access system settings</p>
+            </div>
+
+            <!-- Login Form -->
+            <form method="POST" style="display: flex; flex-direction: column; gap: var(--space-lg);">
+                <div>
+                    <label style="display: block; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-muted); margin-bottom: var(--space-xs); text-transform: uppercase; letter-spacing: 0.05em;">Password</label>
+                    <input 
+                        type="password" 
+                        name="password" 
+                        required 
+                        autofocus
+                        placeholder="Enter your password"
+                        style="width: 100%; padding: 14px 18px; font-size: var(--fs-base); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); outline: none; transition: all 0.2s; font-family: var(--font-main);"
+                        onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-app)'; this.style.boxShadow='0 0 0 3px var(--accent-soft)'"
+                        onblur="this.style.borderColor='var(--border-subtle)'; this.style.background='var(--bg-elevated)'; this.style.boxShadow='none'"
+                    >
+                    {% if error %}
+                    <div style="display: flex; align-items: center; gap: var(--space-xs); margin-top: var(--space-xs); padding: var(--space-sm) var(--space-md); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); color: var(--severity-critical); font-size: var(--fs-sm);">
+                        <i data-lucide="alert-circle" style="width: 16px; height: 16px;"></i>
+                        <span>{{ error }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="intel-btn-modern"
+                    style="width: 100%; padding: 14px 24px; font-size: var(--fs-base); font-weight: var(--fw-semibold); min-height: 48px; margin-top: var(--space-sm);"
+                >
+                    <i data-lucide="log-in" style="width: 18px; height: 18px; margin-right: var(--space-xs);"></i>
+                    Access Settings
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+});
+</script>
+{% endblock %}
+
+
+
+
+
+
+
+
+
