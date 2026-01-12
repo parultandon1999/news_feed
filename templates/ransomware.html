@@ -110,7 +110,7 @@
                             <span style="font-size: 10px; color: var(--text-muted); font-weight: var(--fw-medium);">{{ item.published_date|format_date }}</span>
                         </div>
                         
-                        <a href="{{ item.source_url or '#' }}" target="_blank" style="font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--text-primary); text-decoration: none; line-height: 1.4; display: block; letter-spacing: -0.01em;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                        <a href="#" onclick="openExternalLink('{{ item.source_url or '#' }}', '{{ item.source }}'); return false;" style="font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--text-primary); text-decoration: none; line-height: 1.4; display: block; letter-spacing: -0.01em;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
                         
                         {% if item.description %}
                         <p style="font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-sm);">{{ item.description }}</p>

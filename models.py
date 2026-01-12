@@ -421,6 +421,101 @@ class Database:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """)
         
+        # AI Processing Tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_processing_queue (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                item_type ENUM('news', 'intelligence') NOT NULL,
+                item_id INT NOT NULL,
+                priority INT DEFAULT 5,
+                status ENUM('queued', 'processing', 'completed', 'failed') DEFAULT 'queued',
+                retry_count INT DEFAULT 0,
+                error_message TEXT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP NULL DEFAULT NULL,
+                INDEX idx_status_priority (status, priority),
+                INDEX idx_item (item_type, item_id),
+                UNIQUE KEY unique_item (item_type, item_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
+        
+        # Add AI columns to existing tables
+        try:
+            # Add AI columns to news_articles
+            cursor.execute("""
+                ALTER TABLE news_articles 
+                ADD COLUMN IF NOT EXISTS ai_summary LONGTEXT DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_summary_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+                ADD COLUMN IF NOT EXISTS ai_summary_created_at TIMESTAMP NULL DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_key_points JSON DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_sentiment VARCHAR(20) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_category_tags JSON DEFAULT NULL
+            """)
+        except Exception as e:
+            # For older MySQL versions that don't support IF NOT EXISTS
+            try:
+                cursor.execute("ALTER TABLE news_articles ADD COLUMN ai_summary LONGTEXT DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE news_articles ADD COLUMN ai_summary_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending'")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE news_articles ADD COLUMN ai_summary_created_at TIMESTAMP NULL DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE news_articles ADD COLUMN ai_key_points JSON DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE news_articles ADD COLUMN ai_sentiment VARCHAR(20) DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE news_articles ADD COLUMN ai_category_tags JSON DEFAULT NULL")
+            except:
+                pass
+        
+        try:
+            # Add AI columns to intelligence_items
+            cursor.execute("""
+                ALTER TABLE intelligence_items 
+                ADD COLUMN IF NOT EXISTS ai_summary LONGTEXT DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_summary_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+                ADD COLUMN IF NOT EXISTS ai_summary_created_at TIMESTAMP NULL DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_key_points JSON DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_sentiment VARCHAR(20) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ai_category_tags JSON DEFAULT NULL
+            """)
+        except Exception as e:
+            # For older MySQL versions that don't support IF NOT EXISTS
+            try:
+                cursor.execute("ALTER TABLE intelligence_items ADD COLUMN ai_summary LONGTEXT DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE intelligence_items ADD COLUMN ai_summary_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending'")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE intelligence_items ADD COLUMN ai_summary_created_at TIMESTAMP NULL DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE intelligence_items ADD COLUMN ai_key_points JSON DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE intelligence_items ADD COLUMN ai_sentiment VARCHAR(20) DEFAULT NULL")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE intelligence_items ADD COLUMN ai_category_tags JSON DEFAULT NULL")
+            except:
+                pass
+        
         # Populate default data sources if table is empty
         self._populate_default_sources(cursor)
 
@@ -530,6 +625,61 @@ class Database:
                 logger.error(f"Error in batch insert intelligence items: {e}", exc_info=True)
                 intel_errors = len(intelligence_items)
         
+        # Add items to AI processing queue after successful insertion
+        if hasattr(config, 'AI_SUMMARIZATION_ENABLED') and config.AI_SUMMARIZATION_ENABLED:
+            try:
+                # Queue news articles for AI processing
+                if news_items and (news_inserted > 0 or news_updated > 0):
+                    for item in news_items:
+                        # Get the article ID - we need to fetch it since batch insert doesn't return IDs
+                        if item.get('title') and item.get('source'):
+                            try:
+                                # Create hash to find the article
+                                import hashlib
+                                hash_data = f"news|{item['source']}|{item.get('source_url', '')}|{item['title']}"
+                                hash_id = hashlib.sha256(hash_data.encode()).hexdigest()
+                                
+                                # Find the article ID
+                                conn = self.get_connection()
+                                cursor = self.get_cursor(conn)
+                                cursor.execute("SELECT id FROM news_articles WHERE hash_id = %s", (hash_id,))
+                                result = cursor.fetchone()
+                                if result:
+                                    article_id = result['id'] if isinstance(result, dict) else result[0]
+                                    self.queue_for_ai_processing('news', article_id, priority=5)
+                                cursor.close()
+                                conn.close()
+                            except Exception as e:
+                                logger.debug(f"Could not queue news article for AI processing: {e}")
+                
+                # Queue intelligence items for AI processing (only news-like categories)
+                if intelligence_items and (intel_inserted > 0 or intel_updated > 0):
+                    for item in intelligence_items:
+                        # Only queue certain categories that benefit from AI summarization
+                        category = item.get('category', '').lower()
+                        if category in ['cert', 'cert-in', 'ransomware'] and item.get('title') and item.get('source'):
+                            try:
+                                # Create hash to find the item
+                                import hashlib
+                                hash_data = f"{item['category']}|{item['source']}|{item.get('source_url', '')}|{item['title']}"
+                                hash_id = hashlib.sha256(hash_data.encode()).hexdigest()
+                                
+                                # Find the item ID
+                                conn = self.get_connection()
+                                cursor = self.get_cursor(conn)
+                                cursor.execute("SELECT id FROM intelligence_items WHERE hash_id = %s", (hash_id,))
+                                result = cursor.fetchone()
+                                if result:
+                                    item_id = result['id'] if isinstance(result, dict) else result[0]
+                                    self.queue_for_ai_processing('intelligence', item_id, priority=5)
+                                cursor.close()
+                                conn.close()
+                            except Exception as e:
+                                logger.debug(f"Could not queue intelligence item for AI processing: {e}")
+                                
+            except Exception as e:
+                logger.warning(f"Error queuing items for AI processing: {e}")
+
         return (news_inserted + intel_inserted, news_updated + intel_updated, news_errors + intel_errors)
 
     def _batch_insert_news_articles(self, items: List[Dict[str, Any]]) -> tuple:
@@ -1741,177 +1891,6 @@ class Database:
         conn.close()
         return stats
 
-    def get_time_series_data(self, hours: Optional[int] = 24, category: Optional[str] = None,
-                             date_from: Optional[str] = None, date_to: Optional[str] = None) -> Dict[str, Any]:
-        """Get time series data for charts - includes both intelligence_items and news_articles"""
-        conn = self.get_connection()
-        cursor = self.get_cursor(conn)
-        
-        param = self._get_param_placeholder()
-        
-        # Determine time bucket format based on hours
-        if date_from and date_to:
-            from datetime import datetime
-            try:
-                from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-                to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-                days = (to_dt - from_dt).days
-                hours = days * 24
-            except:
-                hours = 24
-                
-        if hours <= 24:
-            time_format = '%Y-%m-%d %H:00:00'
-        elif hours <= 168:
-            time_format = '%Y-%m-%d'
-        elif hours <= 8760:
-            time_format = '%Y-%u'
-        else:
-            time_format = '%Y-%m'
-            
-        # Build separate where clauses for intelligence_items and news_articles
-        intel_where_clauses = []
-        intel_params = []
-        news_where_clauses = []
-        news_params = []
-        
-        # Time filtering (same for both) - include updated items
-        if date_from and date_to:
-            intel_where_clauses.append(f"(created_at >= {param} AND created_at <= {param}) OR (updated_at >= {param} AND updated_at <= {param})")
-            intel_params.extend([date_from, date_to, date_from, date_to])
-            news_where_clauses.append(f"(created_at >= {param} AND created_at <= {param}) OR (updated_at >= {param} AND updated_at <= {param})")
-            news_params.extend([date_from, date_to, date_from, date_to])
-        elif hours:
-            intel_where_clauses.append(f"created_at >= DATE_SUB(NOW(), INTERVAL {hours} HOUR) OR updated_at >= DATE_SUB(NOW(), INTERVAL {hours} HOUR)")
-            news_where_clauses.append(f"created_at >= DATE_SUB(NOW(), INTERVAL {hours} HOUR) OR updated_at >= DATE_SUB(NOW(), INTERVAL {hours} HOUR)")
-        
-        # Category filtering (only for intelligence_items)
-        if category and category != 'all':
-            intel_where_clauses.append(f"category = {param}")
-            intel_params.append(category)
-            # For news_articles, skip if category is not 'news'
-            if category != 'news':
-                news_where_clauses.append("1=0")  # Don't include news if filtering for other categories
-        
-        intel_where_sql = " AND ".join(intel_where_clauses) if intel_where_clauses else "1=1"
-        news_where_sql = " AND ".join(news_where_clauses) if news_where_clauses else "1=1"
-        
-        # Query intelligence_items - use most recent timestamp for bucketing
-        query_intel = f"""
-            SELECT
-                DATE_FORMAT(GREATEST(created_at, updated_at), '{time_format}') as time_bucket,
-                category,
-                COUNT(*) as count
-            FROM intelligence_items
-            WHERE {intel_where_sql}
-            GROUP BY time_bucket, category
-        """
-        
-        # Query news_articles (treat as 'news' category) - use most recent timestamp
-        query_news = f"""
-            SELECT
-                DATE_FORMAT(GREATEST(created_at, updated_at), '{time_format}') as time_bucket,
-                'news' as category,
-                COUNT(*) as count
-            FROM news_articles
-            WHERE {news_where_sql}
-            GROUP BY time_bucket
-        """
-        
-        # Combine results
-        cursor.execute(query_intel, intel_params)
-        intel_rows = cursor.fetchall()
-        
-        cursor.execute(query_news, news_params)
-        news_rows = cursor.fetchall()
-        
-        # Combine all rows
-        all_rows = list(intel_rows) + list(news_rows)
-        
-        data_by_category = {}
-        all_times = set()
-        
-        for row in all_rows:
-            if isinstance(row, dict):
-                time_bucket = row.get('time_bucket', '')
-                cat = row.get('category', '')
-                count = row.get('count', 0)
-            elif hasattr(row, '__getitem__'):
-                try:
-                    time_bucket = row['time_bucket']
-                    cat = row['category']
-                    count = row['count']
-                except (KeyError, TypeError):
-                    time_bucket = row[0] if len(row) > 0 else ''
-                    cat = row[1] if len(row) > 1 else ''
-                    count = row[2] if len(row) > 2 else 0
-            else:
-                continue
-                
-            if not time_bucket:
-                continue
-                
-            all_times.add(time_bucket)
-            if cat not in data_by_category:
-                data_by_category[cat] = {}
-            data_by_category[cat][time_bucket] = count
-        
-        # Generate ALL time buckets for the range (fill in missing hours/days with zeros)
-        from datetime import datetime, timedelta
-        if hours and hours <= 24:
-            # For 24-hour view, generate all hourly buckets
-            now = datetime.now()
-            all_buckets = []
-            for i in range(hours):
-                bucket_time = now - timedelta(hours=hours-i-1)
-                bucket_str = bucket_time.strftime('%Y-%m-%d %H:00:00')
-                all_buckets.append(bucket_str)
-            sorted_times = all_buckets
-        elif hours and hours <= 168:
-            # For weekly view, generate all daily buckets
-            now = datetime.now()
-            all_buckets = []
-            days = hours // 24
-            for i in range(days):
-                bucket_time = now - timedelta(days=days-i-1)
-                bucket_str = bucket_time.strftime('%Y-%m-%d')
-                all_buckets.append(bucket_str)
-            sorted_times = all_buckets
-        else:
-            # For longer ranges, use existing buckets
-            sorted_times = sorted(all_times) if all_times else []
-            
-        result = {
-            'labels': sorted_times,
-            'datasets': []
-        }
-        
-        # Define categories and colors
-        categories = ['news', 'cve', 'exploit', 'malware', 'ransomware', 'cert', 'cert-in']
-        colors = {
-            'news': '#6366f1',
-            'cve': '#ef4444',
-            'exploit': '#f97316',
-            'malware': '#8b5cf6',
-            'ransomware': '#ec4899',
-            'cert': '#10b981',
-            'cert-in': '#14b8a6'
-        }
-        
-        for cat in categories:
-            if cat in data_by_category:
-                data = [data_by_category[cat].get(time, 0) for time in sorted_times]
-                result['datasets'].append({
-                    'label': cat.upper(),
-                    'data': data,
-                    'borderColor': colors.get(cat, '#6366f1'),
-                    'backgroundColor': colors.get(cat, '#6366f1') + '40',
-                    'tension': 0.1
-                })
-        
-        conn.close()
-        return result
-
     def get_total_count(self) -> int:
         """Get total count of items in database (includes both intelligence_items and news_articles)"""
         conn = self.get_connection()
@@ -2371,3 +2350,203 @@ class Database:
         ]
         for client_name in default_clients:
             self.add_client(client_name)
+
+    def queue_for_ai_processing(self, item_type: str, item_id: int, priority: int = 5):
+        """Add item to AI processing queue"""
+        conn = self.get_connection()
+        cursor = self.get_cursor(conn)
+        
+        try:
+            cursor.execute("""
+                INSERT INTO ai_processing_queue (item_type, item_id, priority)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE priority = VALUES(priority)
+            """, (item_type, item_id, priority))
+            
+            conn.commit()
+            
+        except Exception as e:
+            logger.error(f"Error queuing AI processing: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def update_ai_summary(self, item_type: str, item_id: int, ai_data: Dict):
+        """Update article with AI-generated summary"""
+        conn = self.get_connection()
+        cursor = self.get_cursor(conn)
+        
+        try:
+            table = 'news_articles' if item_type == 'news' else 'intelligence_items'
+            
+            cursor.execute(f"""
+                UPDATE {table}
+                SET ai_summary = %s,
+                    ai_summary_status = 'completed',
+                    ai_summary_created_at = NOW(),
+                    ai_key_points = %s,
+                    ai_sentiment = %s,
+                    ai_category_tags = %s
+                WHERE id = %s
+            """, (
+                ai_data.get('summary'),
+                json.dumps(ai_data.get('key_points', [])),
+                ai_data.get('sentiment'),
+                json.dumps(ai_data.get('category_tags', [])),
+                item_id
+            ))
+            
+            conn.commit()
+            
+        except Exception as e:
+            logger.error(f"Error updating AI summary: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_pending_ai_items(self, limit: int = 10) -> List[Dict]:
+        """Get items pending AI processing"""
+        conn = self.get_connection()
+        cursor = self.get_cursor(conn)
+        
+        try:
+            cursor.execute("""
+                SELECT q.*, 
+                    CASE 
+                        WHEN q.item_type = 'news' THEN n.title
+                        ELSE i.title
+                    END as title,
+                    CASE 
+                        WHEN q.item_type = 'news' THEN n.description
+                        ELSE i.description
+                    END as description,
+                    CASE 
+                        WHEN q.item_type = 'news' THEN n.source
+                        ELSE i.source
+                    END as source
+                FROM ai_processing_queue q
+                LEFT JOIN news_articles n ON q.item_type = 'news' AND q.item_id = n.id
+                LEFT JOIN intelligence_items i ON q.item_type = 'intelligence' AND q.item_id = i.id
+                WHERE q.status = 'queued' AND q.retry_count < 3
+                ORDER BY q.priority DESC, q.created_at ASC
+                LIMIT %s
+            """, (limit,))
+            
+            return cursor.fetchall()
+            
+        except Exception as e:
+            logger.error(f"Error getting pending AI items: {e}")
+            return []
+        finally:
+            cursor.close()
+            conn.close()
+    def update_queue_status(self, queue_id: int, status: str, error_message: str = None):
+        """Update AI processing queue status"""
+        conn = self.get_connection()
+        cursor = self.get_cursor(conn)
+        
+        try:
+            if error_message:
+                cursor.execute("""
+                    UPDATE ai_processing_queue
+                    SET status = %s, error_message = %s, processed_at = NOW()
+                    WHERE id = %s
+                """, (status, error_message, queue_id))
+            else:
+                cursor.execute("""
+                    UPDATE ai_processing_queue
+                    SET status = %s, processed_at = NOW()
+                    WHERE id = %s
+                """, (status, queue_id))
+            
+            conn.commit()
+            
+        except Exception as e:
+            logger.error(f"Error updating queue status: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_article_with_ai(self, article_id: int, include_ai: bool = True) -> Optional[Dict]:
+        """Get article with AI summary data"""
+        conn = self.get_connection()
+        cursor = self.get_cursor(conn)
+        
+        try:
+            if include_ai:
+                cursor.execute("""
+                    SELECT *, ai_summary, ai_key_points, ai_sentiment, ai_category_tags, ai_summary_status
+                    FROM news_articles
+                    WHERE id = %s
+                """, (article_id,))
+            else:
+                cursor.execute("""
+                    SELECT *
+                    FROM news_articles
+                    WHERE id = %s
+                """, (article_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                if isinstance(result, dict):
+                    return result
+                else:
+                    # Convert tuple to dict if needed
+                    columns = [desc[0] for desc in cursor.description]
+                    return dict(zip(columns, result))
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting article with AI: {e}")
+            return None
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_ai_processing_stats(self) -> Dict:
+        """Get AI processing statistics"""
+        conn = self.get_connection()
+        cursor = self.get_cursor(conn)
+        
+        try:
+            cursor.execute("""
+                SELECT 
+                    status,
+                    COUNT(*) as count
+                FROM ai_processing_queue
+                GROUP BY status
+            """)
+            
+            status_counts = {}
+            for row in cursor.fetchall():
+                if isinstance(row, dict):
+                    status_counts[row['status']] = row['count']
+                else:
+                    status_counts[row[0]] = row[1]
+            
+            # Get total articles with AI summaries
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM news_articles WHERE ai_summary IS NOT NULL
+            """)
+            result = cursor.fetchone()
+            news_with_ai = result['count'] if isinstance(result, dict) else result[0]
+            
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM intelligence_items WHERE ai_summary IS NOT NULL
+            """)
+            result = cursor.fetchone()
+            intel_with_ai = result['count'] if isinstance(result, dict) else result[0]
+            
+            return {
+                'queue_stats': status_counts,
+                'articles_with_ai': news_with_ai,
+                'intelligence_with_ai': intel_with_ai,
+                'total_with_ai': news_with_ai + intel_with_ai
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting AI processing stats: {e}")
+            return {}
+        finally:
+            cursor.close()
+            conn.close()

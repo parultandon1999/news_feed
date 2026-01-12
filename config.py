@@ -78,3 +78,11 @@ if not SETTINGS_PASSWORD and not DEBUG:
 
 if not FLASK_SECRET_KEY and not DEBUG:
     raise ValueError("FLASK_SECRET_KEY must be set in config.py for production deployment")
+
+# Gemini AI summarization
+GEMINI_API_KEY = ""
+GEMINI_MODEL = "gemini-2.5-flash"
+AI_SUMMARIZATION_ENABLED = True
+AI_BATCH_SIZE = 10
+AI_RETRY_ATTEMPTS = 3
+AI_RATE_LIMIT_DELAY = 1

@@ -41,12 +41,12 @@
                     <span class="item-source">{{ item.source or 'ARCHIVE-LOG' }}</span>
                     <span class="item-time" style="margin-left: auto;">{{ item.published_date|format_date }}</span>
                 </div>
-                <a href="{{ item.source_url or '#' }}" target="_blank" class="item-headline" style="font-size: 18px;">{{ item.title }}</a>
+                <a href="#" onclick="openExternalLink('{{ item.source_url or '#' }}', '{{ item.source }}'); return false;" class="item-headline" style="font-size: 18px;">{{ item.title }}</a>
                 {% if item.description %}
                 <p class="item-summary">{{ item.description }}</p>
                 {% endif %}
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end;">
-                    <a href="{{ item.source_url or '#' }}" target="_blank" class="view-all-link">View Source →</a>
+                    <a href="#" onclick="openExternalLink('{{ item.source_url or '#' }}', '{{ item.source }}'); return false;" class="view-all-link">View Source →</a>
                 </div>
             </div>
             {% endfor %}

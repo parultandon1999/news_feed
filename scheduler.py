@@ -51,7 +51,7 @@ def fetch_and_store(historical: bool = False, category_filter: str = None, hours
                 if batch_errors > 0:
                     logger.warning(f"Encountered {batch_errors} errors during batch insert")
                     errors.append(f"{batch_errors} items failed during batch insert")
-                
+                :
                 # Calculate stats for history
                 for item in items:
                     source_name = item.get('source', 'Unknown')

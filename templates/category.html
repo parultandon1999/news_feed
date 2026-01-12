@@ -395,7 +395,7 @@
                             
                             <!-- Title -->
                             <h3 style="font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); margin: 0 0 var(--space-xs) 0; line-height: 1.5;">
-                                <a href="{{ item.source_url or '#' }}" target="_blank" style="color: inherit; text-decoration: none;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
+                                <a href="#" onclick="openExternalLink('{{ item.source_url or '#' }}', '{{ item.source }}'); return false;" style="color: inherit; text-decoration: none;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-primary)'">{{ item.title }}</a>
                             </h3>
                             
                             <!-- Description (only show if not redundant with title/metrics) -->
@@ -671,7 +671,7 @@
                             {% elif item.source_url %}
                             <!-- Fallback to ransomware.live page -->
                             <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
-                                <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                                <a href="#" onclick="openExternalLink('{{ item.source_url }}', '{{ item.source }}'); return false;" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                                     <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
                                     View Details
                                 </a>
@@ -683,7 +683,7 @@
                             {% endif %}
                             {% elif item.source_url %}
                             <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
-                                <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                                <a href="#" onclick="openExternalLink('{{ item.source_url }}', '{{ item.source }}'); return false;" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                                     <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
                                     Open Advisory
                                 </a>
@@ -1052,189 +1052,225 @@ function copyToClipboard(text) {
     });
 }
 
-// Article Detail Modal Functions (Feedly-style)
-let currentArticleDetailId = null;
-let currentArticleList = [];
-let currentArticleIndex = -1;
-
-function showArticleDetail(articleId, category) {
-    console.log('showArticleDetail called with:', articleId, category);
-    currentArticleDetailId = articleId;
-    const modal = document.getElementById('articleDetailModal');
-    const body = document.getElementById('articleDetailBody');
-    
-    if (!modal) {
-        console.error('Article detail modal not found');
-        alert('Modal element not found. Please check the page structure.');
-        return;
+// Enhanced Article Detail Modal Functions with AI Support
+function showArticleDetail(itemId, category = 'news') {
+    // Handle both old and new calling patterns
+    if (typeof itemId === 'object') {
+        // Old pattern: showArticleDetail(item)
+        const item = itemId;
+        itemId = item.id;
+        category = item.category || 'news';
     }
     
-    if (!body) {
-        console.error('Article detail body not found');
-        return;
-    }
-    
-    console.log('Modal found, adding active class');
-    // Force display with multiple methods
-    modal.style.setProperty('display', 'flex', 'important');
-    modal.classList.add('active');
-    // Ensure it's visible
-    setTimeout(() => {
-        if (getComputedStyle(modal).display === 'none') {
-            modal.style.setProperty('display', 'flex', 'important');
-        }
-    }, 10);
-    
-    body.innerHTML = '<div style="text-align: center; padding: 60px;"><i data-lucide="loader" class="spin-icon"></i><p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p></div>';
-    lucide.createIcons();
-    
-    // Get current article list for navigation
-    const articleCards = document.querySelectorAll('[data-article-id]');
-    currentArticleList = Array.from(articleCards).map(card => parseInt(card.getAttribute('data-article-id')));
-    currentArticleIndex = currentArticleList.indexOf(articleId);
-    
-    // Update navigation buttons
-    const prevBtn = document.getElementById('articleNavPrev');
-    const nextBtn = document.getElementById('articleNavNext');
-    if (prevBtn) prevBtn.style.display = currentArticleIndex > 0 ? 'flex' : 'none';
-    if (nextBtn) nextBtn.style.display = currentArticleIndex < currentArticleList.length - 1 ? 'flex' : 'none';
-    
-    // Fetch article details
-    const isNews = category === 'news';
-    const endpoint = isNews ? `/api/article/${articleId}/detail` : `/api/intelligence?id=${articleId}`;
-    fetch(endpoint)
-        .then(r => {
-            console.log('Response status:', r.status);
-            if (!r.ok) {
-                throw new Error(`HTTP error! status: ${r.status}`);
-            }
-            return r.json();
-        })
-        .then(d => {
-            console.log('Response data:', d);
-            if (d.success && d.item) {
-                renderArticleDetail(d.item, isNews);
+    // Fetch full article details including AI summary
+    fetch(`/api/article/${itemId}?include_ai=true`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                displayEnhancedArticleModal(data.article);
             } else {
-                body.innerHTML = `<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article: ${d.error || 'Unknown error'}</p></div>`;
+                console.error('Failed to fetch article:', data.error);
+                showNotification('Failed to load article details', 'error');
             }
-            lucide.createIcons();
         })
-        .catch(err => {
-            console.error('Fetch error:', err);
-            body.innerHTML = `<div style="text-align: center; padding: 60px; color: var(--error);"><p>Error loading article: ${err.message}</p><p style="font-size: 12px; margin-top: 8px;">Check browser console for details</p></div>`;
-            lucide.createIcons();
+        .catch(error => {
+            console.error('Error fetching article:', error);
+            showNotification('Error loading article details', 'error');
         });
 }
 
-function renderArticleDetail(item, isNews) {
-    const body = document.getElementById('articleDetailBody');
-    const date = item.published_date ? new Date(item.published_date).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    }) : 'N/A';
-    const timeAgo = item.published_date ? getTimeAgo(new Date(item.published_date)) : '';
+function displayEnhancedArticleModal(item) {
+    console.log('Displaying enhanced modal for item:', item); // Debug log
     
-    const imageHtml = item.image_url ? `
-        <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title || '')}" class="article-detail-image" onerror="this.style.display='none'">
-    ` : '';
+    const modal = document.createElement('div');
+    modal.className = 'article-modal-backdrop';
     
-    // Parse tags - handle both JSON string and array
-    let tagsArray = [];
-    if (item.tags) {
-        if (typeof item.tags === 'string') {
-            // Try to parse as JSON first
-            try {
-                const parsed = JSON.parse(item.tags);
-                if (Array.isArray(parsed)) {
-                    tagsArray = parsed;
-                } else {
-                    // If not JSON, split by comma
-                    tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
-                }
-            } catch (e) {
-                // If JSON parse fails, split by comma
-                tagsArray = item.tags.split(',').map(t => t.trim()).filter(Boolean);
-            }
-        } else if (Array.isArray(item.tags)) {
-            tagsArray = item.tags;
-        }
-    }
+    // Check AI summary status
+    const hasAISummary = item.ai_summary && item.ai_summary_status === 'completed';
+    console.log('Has AI summary:', hasAISummary, 'Status:', item.ai_summary_status); // Debug log
     
-    const tagsHtml = tagsArray
-        .filter(Boolean)
-        .filter(tag => tag !== '[]' && tag !== '')
-        .map(tag => `<span class="article-tag">${escapeHtml(tag)}</span>`).join('');
-    
-    body.innerHTML = `
-        <div class="article-detail-header">
-            <h1 class="article-detail-title">${escapeHtml(item.title || 'Untitled')}</h1>
-            <div class="article-detail-meta">
-                <span class="article-detail-source">
-                    <i data-lucide="newspaper" style="width: 16px; height: 16px;"></i>
-                    ${escapeHtml(item.source || 'Unknown Source')}
-                </span>
-                <span class="article-detail-date">
-                    <i data-lucide="calendar" style="width: 16px; height: 16px;"></i>
-                    ${date}${timeAgo ? ` (${timeAgo})` : ''}
-                </span>
+    // AI Summary Section
+    const aiSummaryHtml = hasAISummary ? `
+        <div class="ai-summary-section">
+            <div class="ai-summary-header">
+                <i data-lucide="brain" style="width: 20px; height: 20px;"></i>
+                <h4>AI Analysis</h4>
+                <span class="ai-badge">Powered by Gemini</span>
+            </div>
+            
+            <div class="ai-summary-content">
+                <div class="summary-text">
+                    <h5>Summary</h5>
+                    <p>${escapeHtml(item.ai_summary)}</p>
+                </div>
+                
+                ${item.ai_key_points ? `
+                <div class="key-points">
+                    <h5>Key Points</h5>
+                    <ul>
+                        ${JSON.parse(item.ai_key_points).map(point => 
+                            `<li>${escapeHtml(point)}</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                
+                ${item.ai_sentiment ? `
+                <div class="sentiment-analysis">
+                    <span class="sentiment-label">Sentiment:</span>
+                    <span class="sentiment-${item.ai_sentiment}">${escapeHtml(item.ai_sentiment)}</span>
+                </div>
+                ` : ''}
+                
+                ${item.ai_category_tags ? `
+                <div class="ai-tags">
+                    ${JSON.parse(item.ai_category_tags).map(tag => 
+                        `<span class="ai-tag">${escapeHtml(tag)}</span>`
+                    ).join('')}
+                </div>
+                ` : ''}
             </div>
         </div>
-        ${imageHtml}
-        <div class="article-detail-description">
-            ${escapeHtml(item.description || item.meta_description || 'No description available.')}
-        </div>
-        ${tagsHtml ? `<div class="article-detail-tags">${tagsHtml}</div>` : ''}
-        <div class="article-detail-actions">
-            ${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" class="article-visit-btn">
-                <i data-lucide="external-link" style="width: 18px; height: 18px;"></i>
-                Read More
-            </a>` : ''}
+    ` : `
+        <div class="ai-summary-pending">
+            <i data-lucide="clock" style="width: 16px; height: 16px;"></i>
+            <span>AI analysis pending...</span>
+            <button onclick="requestAISummary(${item.id})" class="ai-request-btn">
+                Generate Summary
+            </button>
         </div>
     `;
-    lucide.createIcons();
-}
-
-function getTimeAgo(date) {
-    const now = new Date();
-    const diff = now - date;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
     
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
-    return '';
-}
-
-function navigateArticle(direction) {
-    if (currentArticleList.length === 0) return;
+    modal.innerHTML = `
+        <div class="article-modal-content enhanced">
+            <div class="article-modal-header">
+                <h2>${escapeHtml(item.title || 'Untitled')}</h2>
+                <button class="modal-close" onclick="closeModal(this)">&times;</button>
+            </div>
+            
+            <div class="article-modal-body">
+                <!-- Source and Date -->
+                <div class="article-meta">
+                    <span class="source">${escapeHtml(item.source || 'Unknown Source')}</span>
+                    <span class="date">${formatDate(item.published_date)}</span>
+                </div>
+                
+                <!-- AI Summary Section -->
+                ${aiSummaryHtml}
+                
+                <!-- Original Content -->
+                <div class="original-content">
+                    <h4>Full Article</h4>
+                    <div class="article-description">
+                        ${escapeHtml(item.description || item.meta_description || 'No description available')}
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="article-actions">
+                    ${item.source_url ? `
+                        <button onclick="openExternalLink('${escapeHtml(item.source_url)}', '${escapeHtml(item.source || 'External Source')}')" 
+                                class="primary-btn">
+                            <i data-lucide="external-link"></i>
+                            Read Full Article
+                        </button>
+                    ` : ''}
+                    
+                    <button onclick="shareArticle(${item.id})" class="secondary-btn">
+                        <i data-lucide="share-2"></i>
+                        Share
+                    </button>
+                    
+                    <button onclick="bookmarkArticle(${item.id})" class="secondary-btn">
+                        <i data-lucide="bookmark"></i>
+                        Bookmark
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
     
-    let newIndex = currentArticleIndex;
-    if (direction === 'prev' && currentArticleIndex > 0) {
-        newIndex = currentArticleIndex - 1;
-    } else if (direction === 'next' && currentArticleIndex < currentArticleList.length - 1) {
-        newIndex = currentArticleIndex + 1;
-    } else {
-        return;
+    document.body.appendChild(modal);
+    
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
     }
     
-    const newId = currentArticleList[newIndex];
-    const category = '{{ category }}';
-    showArticleDetail(newId, category);
+    // Add click outside to close
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal(modal.querySelector('.modal-close'));
+        }
+    });
 }
 
-function closeArticleDetailModal() {
-    const modal = document.getElementById('articleDetailModal');
+function requestAISummary(articleId) {
+    console.log('Requesting AI summary for article:', articleId); // Debug log
+    
+    fetch(`/api/ai/summarize/${articleId}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            console.log('AI summary request response:', data); // Debug log
+            if (data.success) {
+                showNotification('AI summary requested. Processing...', 'info');
+                // Refresh modal after a delay
+                setTimeout(() => {
+                    // Close current modal and reopen with updated data
+                    const currentModal = document.querySelector('.article-modal-backdrop');
+                    if (currentModal) {
+                        currentModal.remove();
+                    }
+                    // Reopen the modal with fresh data
+                    showArticleDetail(articleId, 'news');
+                }, 3000);
+            } else {
+                showNotification('Failed to request AI summary: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error requesting AI summary:', error);
+            showNotification('Error requesting AI summary', 'error');
+        });
+}
+
+function closeModal(button) {
+    const modal = button.closest('.article-modal-backdrop');
     if (modal) {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
+        modal.remove();
     }
-    currentArticleDetailId = null;
-    currentArticleList = [];
-    currentArticleIndex = -1;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    } catch (e) {
+        return dateString;
+    }
+}
+
+function shareArticle(articleId) {
+    if (navigator.share) {
+        navigator.share({
+            title: 'Security Intelligence Article',
+            url: window.location.href
+        });
+    } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(window.location.href);
+        showNotification('Article URL copied to clipboard', 'success');
+    }
+}
+
+function bookmarkArticle(articleId) {
+    // You can implement bookmarking functionality here
+    showNotification('Bookmark feature coming soon!', 'info');
 }
 
 function escapeHtml(text) {
@@ -1244,247 +1280,12 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Close modal on Escape key and arrow navigation
+// Close enhanced modal on Escape key
 document.addEventListener('keydown', (e) => {
-    const modal = document.getElementById('articleDetailModal');
-    if (!modal || !modal.classList.contains('active')) return;
-    
-    if (e.key === 'Escape') {
-        closeArticleDetailModal();
-    } else if (e.key === 'ArrowLeft') {
-        navigateArticle('prev');
-    } else if (e.key === 'ArrowRight') {
-        navigateArticle('next');
+    const modal = document.querySelector('.article-modal-backdrop');
+    if (modal && e.key === 'Escape') {
+        modal.remove();
     }
 });
 </script>
-
-<!-- Article Detail Modal (Feedly-style) -->
-<div id="articleDetailModal" class="article-detail-modal">
-    <div class="modal-content article-detail-content">
-        <button onclick="closeArticleDetailModal()" class="article-modal-close">
-            <i data-lucide="x"></i>
-        </button>
-        <button onclick="navigateArticle('prev')" class="article-nav-btn article-nav-prev" id="articleNavPrev">
-            <i data-lucide="chevron-left"></i>
-        </button>
-        <button onclick="navigateArticle('next')" class="article-nav-btn article-nav-next" id="articleNavNext">
-            <i data-lucide="chevron-right"></i>
-        </button>
-        <div class="article-detail-body" id="articleDetailBody">
-            <div style="text-align: center; padding: 60px;">
-                <i data-lucide="loader" class="spin-icon"></i>
-                <p style="margin-top: 16px; color: var(--text-muted);">Loading article...</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-/* Article Detail Modal Styles (Feedly-style) */
-.article-detail-modal {
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-}
-
-.article-detail-modal.active {
-    display: flex !important;
-}
-
-.article-detail-content {
-    max-width: 900px;
-    width: 90%;
-    max-height: 90vh;
-    margin: 5vh auto;
-    position: relative;
-    background: var(--bg-card);
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-}
-
-.article-modal-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 10;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-primary);
-    transition: all 0.2s;
-}
-
-.article-modal-close:hover {
-    background: var(--accent-soft);
-    border-color: var(--accent-primary);
-    transform: scale(1.05);
-}
-
-.article-nav-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 10;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
-    border: 2px solid var(--border);
-    border-radius: 50%;
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-primary);
-    transition: all 0.2s;
-    opacity: 0.7;
-}
-
-.article-nav-btn:hover {
-    opacity: 1;
-    background: rgba(0, 0, 0, 0.8);
-    border-color: var(--accent-primary);
-    transform: translateY(-50%) scale(1.1);
-}
-
-.article-nav-prev {
-    left: 20px;
-}
-
-.article-nav-next {
-    right: 20px;
-}
-
-.article-detail-body {
-    padding: 40px;
-    overflow-y: auto;
-    max-height: 90vh;
-}
-
-.article-detail-header {
-    margin-bottom: 24px;
-}
-
-.article-detail-title {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--text-primary);
-    line-height: 1.3;
-    margin-bottom: 16px;
-}
-
-.article-detail-meta {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-bottom: 24px;
-    font-size: 13px;
-    color: var(--text-muted);
-}
-
-.article-detail-source {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    background: var(--bg-elevated);
-    border-radius: 6px;
-    font-weight: 600;
-}
-
-.article-detail-date {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.article-detail-image {
-    width: 100%;
-    max-height: 400px;
-    object-fit: cover;
-    border-radius: 12px;
-    margin-bottom: 24px;
-    border: 1px solid var(--border);
-}
-
-.article-detail-description {
-    font-size: 16px;
-    line-height: 1.7;
-    color: var(--text-secondary);
-    margin-bottom: 24px;
-    white-space: pre-wrap;
-}
-
-.article-detail-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 24px;
-}
-
-.article-tag {
-    padding: 6px 12px;
-    background: var(--accent-soft);
-    color: var(--accent-primary);
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.article-detail-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border);
-}
-
-.article-visit-btn {
-    padding: 14px 28px;
-    background: var(--accent-primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 14px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s;
-    text-decoration: none;
-}
-
-.article-visit-btn:hover {
-    background: var(--accent-primary-hover, var(--accent-primary));
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.spin-icon {
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-</style>
 {% endblock %}

@@ -2642,7 +2642,7 @@ function renderArticleDetail(item, isNews) {
             <!-- Action Buttons -->
             <div style="display: flex; gap: var(--space-md); padding-top: var(--space-lg); border-top: 2px solid var(--border); flex-wrap: wrap;">
                 ${item.source_url ? `
-                <a href="${escapeHtml(item.source_url)}" target="_blank" 
+                <a href="#" onclick="openExternalLink('${escapeHtml(item.source_url)}', '${escapeHtml(item.source)}'); return false;" 
                    style="flex: 1; min-width: 200px; padding: 16px 28px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; border: none; border-radius: var(--radius-md); font-weight: var(--fw-bold); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); transition: all 0.2s; text-decoration: none; box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);"
                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(20, 184, 166, 0.4)'"
                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(20, 184, 166, 0.3)'">

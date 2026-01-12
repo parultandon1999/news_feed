@@ -981,95 +981,6 @@ def category_page(category: str):
         current_year=current_year
     )
 
-@app.route('/api/timeseries')
-def api_timeseries():
-    hours = request.args.get('hours')
-    date_from = request.args.get('date_from')
-    date_to = request.args.get('date_to')
-    category = request.args.get('category', None)
-    if date_from and date_to:
-        data = db.get_time_series_data(date_from=date_from, date_to=date_to, category=category)
-    else:
-        hours = int(hours) if hours else 24
-        if hours < 1:
-            hours = 1
-        elif hours > 43800:
-            hours = 43800
-        data = db.get_time_series_data(hours=hours, category=category)
-    return jsonify(data)
-
-@app.route('/api/severity-breakdown')
-def api_severity_breakdown():
-    """Get severity breakdown for charts"""
-    hours = request.args.get('hours', type=int, default=24)
-    if hours < 1:
-        hours = 1
-    elif hours > 43800:
-        hours = 43800
-    conn = db.get_connection()
-    cursor = db.get_cursor(conn)
-    cursor.execute(f"""
-        SELECT
-            SUM(CASE WHEN UPPER(severity) = 'CRITICAL' THEN 1 ELSE 0 END) as critical,
-            SUM(CASE WHEN UPPER(severity) = 'HIGH' THEN 1 ELSE 0 END) as high,
-            SUM(CASE WHEN UPPER(severity) = 'MEDIUM' THEN 1 ELSE 0 END) as medium,
-            SUM(CASE WHEN UPPER(severity) = 'LOW' THEN 1 ELSE 0 END) as low
-        FROM intelligence_items
-        WHERE category = 'cve'
-          AND (published_date >= DATE_SUB(NOW(), INTERVAL {hours} HOUR)
-           OR (published_date IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL {hours} HOUR))
-           OR updated_at >= DATE_SUB(NOW(), INTERVAL {hours} HOUR))
-    """)
-    result = cursor.fetchone()
-    counts = {
-        'critical': 0,
-        'high': 0,
-        'medium': 0,
-        'low': 0
-    }
-    if result:
-        if isinstance(result, dict):
-            counts['critical'] = result.get('critical', 0) or 0
-            counts['high'] = result.get('high', 0) or 0
-            counts['medium'] = result.get('medium', 0) or 0
-            counts['low'] = result.get('low', 0) or 0
-        elif hasattr(result, '__getitem__'):
-            try:
-                counts['critical'] = result['critical'] if 'critical' in result else (result[0] if len(result) > 0 else 0)
-                counts['high'] = result['high'] if 'high' in result else (result[1] if len(result) > 1 else 0)
-                counts['medium'] = result['medium'] if 'medium' in result else (result[2] if len(result) > 2 else 0)
-                counts['low'] = result['low'] if 'low' in result else (result[3] if len(result) > 3 else 0)
-            except:
-                pass
-    total = counts['critical'] + counts['high'] + counts['medium'] + counts['low']
-    if total == 0 and hours == 24:
-        cursor.execute("""
-            SELECT
-                SUM(CASE WHEN UPPER(severity) = 'CRITICAL' THEN 1 ELSE 0 END) as critical,
-                SUM(CASE WHEN UPPER(severity) = 'HIGH' THEN 1 ELSE 0 END) as high,
-                SUM(CASE WHEN UPPER(severity) = 'MEDIUM' THEN 1 ELSE 0 END) as medium,
-                SUM(CASE WHEN UPPER(severity) = 'LOW' THEN 1 ELSE 0 END) as low
-            FROM intelligence_items
-            WHERE category = 'cve'
-        """)
-        result = cursor.fetchone()
-        if result:
-            if isinstance(result, dict):
-                counts['critical'] = result.get('critical', 0) or 0
-                counts['high'] = result.get('high', 0) or 0
-                counts['medium'] = result.get('medium', 0) or 0
-                counts['low'] = result.get('low', 0) or 0
-            elif hasattr(result, '__getitem__'):
-                try:
-                    counts['critical'] = result['critical'] if 'critical' in result else (result[0] if len(result) > 0 else 0)
-                    counts['high'] = result['high'] if 'high' in result else (result[1] if len(result) > 1 else 0)
-                    counts['medium'] = result['medium'] if 'medium' in result else (result[2] if len(result) > 2 else 0)
-                    counts['low'] = result['low'] if 'low' in result else (result[3] if len(result) > 3 else 0)
-                except:
-                    pass
-    cursor.close()
-    conn.close()
-    return jsonify({'counts': counts})
 @app.route('/api/stats')
 def api_stats():
     date_from = request.args.get('date_from')
@@ -3892,6 +3803,46 @@ def api_feeds_delete():
     except Exception as e:
         logger.error(f"Error deleting feeds: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/article/<int:article_id>')
+def api_get_article(article_id):
+    """Get article with optional AI summary"""
+    include_ai = request.args.get('include_ai', 'false').lower() == 'true'
+    
+    article = db.get_article_with_ai(article_id, include_ai)
+    
+    if article:
+        return jsonify({'success': True, 'article': article})
+    else:
+        return jsonify({'success': False, 'error': 'Article not found'}), 404
+
+@app.route('/api/ai/summarize/<int:article_id>', methods=['POST'])
+def api_request_ai_summary(article_id):
+    """Request AI summary for specific article"""
+    try:
+        # Queue for high priority processing
+        db.queue_for_ai_processing('news', article_id, priority=10)
+        
+        return jsonify({
+            'success': True,
+            'message': 'AI summary requested'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ai/status')
+def api_ai_status():
+    """Get AI processing status"""
+    stats = db.get_ai_processing_stats()
+    
+    return jsonify({
+        'success': True,
+        'stats': stats
+    })
 
 
 if __name__ == '__main__':

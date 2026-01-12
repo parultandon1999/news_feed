@@ -119,7 +119,7 @@
                         <!-- Action Buttons -->
                         {% if item.source_url %}
                         <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
-                            <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                            <a href="#" onclick="openExternalLink('{{ item.source_url }}', '{{ item.source }}'); return false;" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary);">
                                 <i data-lucide="square-arrow-out-up-right" style="width: 14px; height: 14px;"></i>
                                 Open Advisory
                             </a>
@@ -241,7 +241,7 @@
                         <!-- Action Buttons -->
                         {% if item.source_url %}
                         <div style="display: flex; gap: var(--space-xs); margin-top: var(--space-xs); flex-wrap: wrap;">
-                            <a href="{{ item.source_url }}" target="_blank" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                            <a href="#" onclick="openExternalLink('{{ item.source_url }}', '{{ item.source }}'); return false;" class="intel-btn-modern" style="padding: 6px 14px; font-size: 11px; min-height: 32px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                                 <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
                                 Open Advisory
                             </a>
